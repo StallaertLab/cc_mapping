@@ -1,2 +1,1 @@
-# cc_mapping
-Cell Cycle Mapping Package
+# Cell Cycle Mapping Package
