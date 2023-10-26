@@ -24,6 +24,9 @@ def random_forest_feature_selection(adata: ad.AnnData,
                                     training_labels: str,
                                     feature_set_name: str = None,
                                     method: str = 'RF_min_max',
+                                    random_state: int = 42,
+                                    n_jobs: int = -1,
+                                    stable_counter: int = 10
                                     ):
 
     feature_set_idxs, _ = get_str_idx(training_feature_set, adata.var.X_features)
@@ -50,7 +53,7 @@ def random_forest_feature_selection(adata: ad.AnnData,
     features = trunc_cell_data
 
     # Split the data into training and testing sets
-    train_features, _, train_labels, _ = train_test_split(features, labels, test_size = 0.25, random_state = 42)
+    train_features, _, train_labels, _ = train_test_split(features, labels, test_size = 0.25, random_state = random_state)
 
     # Instantiate model 
     rf_classifier = RandomForestClassifier(
@@ -58,8 +61,8 @@ def random_forest_feature_selection(adata: ad.AnnData,
                         n_estimators=150,
                         bootstrap=True,
                         oob_score=True,
-                        n_jobs=-1,
-                        random_state=42)
+                        n_jobs=n_jobs,
+                        random_state=random_state)
 
     rf_classifier.fit(train_features, train_labels)
         
@@ -86,8 +89,8 @@ def random_forest_feature_selection(adata: ad.AnnData,
                                 n_estimators=150,
                                 bootstrap=True,
                                 oob_score=True,
-                                n_jobs=-1,
-                                random_state=42)
+                                n_jobs=n_jobs,
+                                random_state=random_state)
 
             trunc_rf_classifier.fit(trunc_train_features, trunc_train_labels)
 
@@ -102,12 +105,11 @@ def random_forest_feature_selection(adata: ad.AnnData,
                 max_acc_arg = np.argmax(np.array(acc_list)[:,1])
                 stable_counter = 0
 
-            if stable_counter == 10:
+            if stable_counter == stable_counter:
                 break
 
 
         acc_list = np.array(acc_list)
-        max_accuracy = acc_list[max_acc_arg,1]
         optim_feat_num = max_acc_arg + 1
         optim_RF_feature_set = sorted_feature_set[:optim_feat_num]
 

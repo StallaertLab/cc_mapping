@@ -15,75 +15,6 @@ sys.path.append(cc_mapping_package_dir)
 
 from cc_mapping.utils import get_str_idx
 
-def row_partition_plotting_function(ax, idx_dict, plotting_dict):
-
-    Dof_colors = plotting_dict['Dof_colors']
-    plot_all = plotting_dict['plot_all']
-
-    kwargs = plotting_dict['kwargs']
-
-    adata = plotting_dict['adata'].copy()
-    phate_df = adata.obsm['X_phate']
-
-    obs_search_term = plotting_dict['obs_search_term']
-
-    row_idx = idx_dict['row_idx']
-    col_idx = idx_dict['col_idx']
-
-    color_name = list(Dof_colors.keys())[row_idx-1]
-    color_dict = Dof_colors[color_name]
-
-    color_type = color_dict['color_type']
-    color = Dof_colors[row_idx-1]
-
-    if color_type == 'continuous': 
-        color_idxs, _ = get_str_idx(color, adata.var.X_features)
-
-        colors = adata.X[:, color_idxs]
-
-        vmin = np.percentile(colors, 1)
-        vmax = np.percentile(colors, 90)
-        kwargs.update( { 'vmin' : vmin,
-                         'vmax' : vmax,
-                         'cmap' : 'rainbow',})
-    else:
-        colors = adata.obs[color]
-        
-    ax.scatter(phate_df[:,0], phate_df[:,1],c='grey',s=5,alpha=0.1, rasterized=True)
-
-    plotting_df = phate_df
-
-    uniq_labels = np.unique(adata.obs[obs_search_term])
-
-    Lof_label_idxs = [get_str_idx(label, adata.obs[obs_search_term])[0] for label in uniq_labels]
-
-    if plot_all:
-        uniq_labels = np.append(uniq_labels, 'ALL')
-
-    current_plotting_label = uniq_labels[col_idx-1]
-
-    if current_plotting_label == 'ALL':
-        condition_df = plotting_df 
-    else:
-        label_idxs = Lof_label_idxs[col_idx-1]
-        condition_df =plotting_df[label_idxs,:]
-
-    ax.scatter(condition_df[:,0], condition_df[:,1],
-        s=5,
-        c=colors,
-        alpha=0.8,
-        rasterized=True,
-        **kwargs)
-        
-    ax.set_yticklabels([])
-    ax.set_xticklabels([])
-    ax.get_xaxis().set_ticks([])
-    ax.get_yaxis().set_ticks([])
-    ax.axis('off')
-    ax.axis('tight')
-
-    return ax
-
 def plot_row_partitions(adata: ad.AnnData,
                         obs_search_term: str,
                         color_info_dict, 
@@ -105,7 +36,7 @@ def plot_row_partitions(adata: ad.AnnData,
                      'kwargs': {}
                      }
     if kwargs != {}:
-        plotting_dict.update(kwargs)
+        plotting_dict['kwargs'] = kwargs
 
     fig = general_plotting_function(plotting_function, {} , plotting_dict, unit_size=unit_size)
 
@@ -117,7 +48,7 @@ def row_partition_plotting_function(ax, idx_dict, plotting_dict):
     Dof_colors = plotting_dict['Dof_colors']
     plot_all = plotting_dict['plot_all']
 
-    kwargs = plotting_dict['kwargs']
+    kwargs = plotting_dict['kwargs'].copy()
 
     adata = plotting_dict['adata'].copy()
     phate_df = adata.obsm['X_phate']
@@ -140,7 +71,7 @@ def row_partition_plotting_function(ax, idx_dict, plotting_dict):
     else:
         colors = adata.obs[color_name]
         
-    ax.scatter(phate_df[:,0], phate_df[:,1],c='grey',s=5,alpha=0.1, rasterized=True)
+    ax.scatter(phate_df[:,0], phate_df[:,1],c='lightgrey', **kwargs)
 
     plotting_df = phate_df
 
@@ -167,12 +98,7 @@ def row_partition_plotting_function(ax, idx_dict, plotting_dict):
                          'vmax' : vmax,
                          'cmap' : 'rainbow',})
 
-    ax.scatter(condition_df[:,0], condition_df[:,1],
-        s=35,
-        c=colors,
-        alpha=0.8,
-        rasterized=True,
-        **kwargs)
+    ax.scatter(condition_df[:,0], condition_df[:,1], c=colors, **kwargs)
         
     ax.set_yticklabels([])
     ax.set_xticklabels([])
