@@ -28,8 +28,7 @@ def run_phate(adata: ad.AnnData,
               hyperparam: bool = False):
     
     feature_set_bool = adata.var[feature_set].values
-    data = adata.layers[layer].copy()
-    data = adata[:,feature_set_bool].copy()
+    data = adata.layers[layer][:,feature_set_bool].copy()
 
     phate_operator = phate.PHATE(**phate_param_dict)
     phate_coords = phate_operator.fit_transform(data) # Reduce the dimensions of the data using the PHATE algorithm
