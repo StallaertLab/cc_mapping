@@ -26,7 +26,7 @@ def random_forest_feature_selection(adata: ad.AnnData,
                                     method: str = 'RF_min_max',
                                     ):
 
-    feature_set_idxs, _ = get_str_idx(training_feature_set, adata.var.X_features)
+    feature_set_idxs, _ = get_str_idx(training_feature_set, adata.var_names.values)
 
     try:
         phase_nan_idx, _ = get_str_idx('nan', adata.obs[training_labels])

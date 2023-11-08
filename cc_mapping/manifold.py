@@ -22,16 +22,13 @@ from cc_mapping.plot import general_plotting_function, get_legend
 
 def run_phate(adata: ad.AnnData,
               feature_set:str,
+              layer: str,
               phate_param_dict: dict = {},
-              norm_method: str = 'z_score',
               obsm_save_key: str = 'X_phate',
               hyperparam: bool = False):
     
     feature_set_bool = adata.var[feature_set].values
-    data = adata[:,feature_set_bool].X.copy()
-
-    if norm_method == 'z_score':
-        data = st.zscore(data, axis=0)
+    data = adata.layers[layer][:,feature_set_bool].copy()
 
     phate_operator = phate.PHATE(**phate_param_dict)
     phate_coords = phate_operator.fit_transform(data) # Reduce the dimensions of the data using the PHATE algorithm
@@ -75,7 +72,7 @@ def phate_hyperparameter_search_plotting_function(axe, idx_dict, plotting_dict):
     adata = plotting_dict['adata']
     feature_set = plotting_dict['feature_set']
     color_name = plotting_dict['color_name']
-    norm_method = plotting_dict['norm_method']
+    layer = plotting_dict['norm_method']
     unit_size = plotting_dict['unit_size']
     kwargs = plotting_dict['kwargs']
 
@@ -91,7 +88,7 @@ def phate_hyperparameter_search_plotting_function(axe, idx_dict, plotting_dict):
     hyperparam_dict[row_param_name] = row_param_list[row_idx]
     hyperparam_dict[col_param_name] = col_param_list[col_idx]
 
-    phate_coords = run_phate(adata, feature_set, hyperparam_dict, norm_method=norm_method, hyperparam=True)
+    phate_coords = run_phate(adata, feature_set, hyperparam_dict, layer=layer, hyperparam=True)
 
     patches,colors = get_legend(adata, color_name)
     
@@ -103,11 +100,11 @@ def phate_hyperparameter_search_plotting_function(axe, idx_dict, plotting_dict):
 
 def perform_phate_hyperparameter_search(adata: ad.AnnData,
                                   feature_set: str,
+                                  layer: str,
                                   hyperparam_dict: dict,
                                   hyperparam_info_dict: dict,
                                   color_name: list = None,
                                   save_path: str = None,
-                                  norm_method: str = 'z_score',
                                   unit_size: int = 10,
                                   kwargs: dict = {}):
 
@@ -141,7 +138,7 @@ def perform_phate_hyperparameter_search(adata: ad.AnnData,
         plotting_dict = {'adata':adata,
                             'feature_set':feature_set,
                             'color_name':color_name,
-                            'norm_method':norm_method,
+                            'layer':layer,
                             'unit_size':unit_size,
                             'hyperparam_dict': temp_hyperparam_dict,
                             'hyperparam_info_dict':temp_hyperparam_info_dict,
