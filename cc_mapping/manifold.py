@@ -72,7 +72,7 @@ def phate_hyperparameter_search_plotting_function(axe, idx_dict, plotting_dict):
     adata = plotting_dict['adata']
     feature_set = plotting_dict['feature_set']
     color_name = plotting_dict['color_name']
-    layer = plotting_dict['norm_method']
+    layer = plotting_dict['layer']
     unit_size = plotting_dict['unit_size']
     kwargs = plotting_dict['kwargs']
 
@@ -88,7 +88,7 @@ def phate_hyperparameter_search_plotting_function(axe, idx_dict, plotting_dict):
     hyperparam_dict[row_param_name] = row_param_list[row_idx]
     hyperparam_dict[col_param_name] = col_param_list[col_idx]
 
-    phate_coords = run_phate(adata, feature_set, hyperparam_dict, layer=layer, hyperparam=True)
+    phate_coords = run_phate(adata, feature_set, layer,hyperparam_dict, hyperparam=True)
 
     patches,colors = get_legend(adata, color_name)
     
