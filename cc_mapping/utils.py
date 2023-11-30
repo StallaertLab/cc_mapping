@@ -3,20 +3,27 @@ from collections import Counter
 from math import floor
 import re
 
-def get_str_idx(str_to_find, string_list, regex=True):
+def get_str_idx(str_to_find, string_list, regex=False):
     
     if type(str_to_find) == str:
-        feat_idx_names = np.array([[idx,string_list[idx]] for idx, string in enumerate(string_list) if re.search(str_to_find, string) != None])
+        if regex:
+            feat_idx_names = np.array([[idx,string_list[idx]] for idx, string in enumerate(string_list) if re.search(str_to_find, string) != None])
+        else:
+            feat_idx_names = np.array([[idx,string_list[idx]] for idx, string in enumerate(string_list) if str_to_find in string])
 
     elif type(str_to_find) == list or type(str_to_find) == np.ndarray:
 
-        match_list = []
-        for re_string in str_to_find:
-            feat_idx_names = [[idx,string_list[idx]] for idx, string in enumerate(string_list) if re.search(re_string, string) != None]
-            if feat_idx_names != []:
-                match_list.append(feat_idx_names)
+        if regex:
+            raise ValueError('Regex search not supported for array of strings')
 
-        feat_idx_names = np.vstack(match_list)
+        if np.unique(str_to_find).shape[0] != len(str_to_find):
+            raise ValueError('Search array of strings contains duplicate strings')
+        
+        #if np.unique(string_list).shape[0] != len(string_list):
+            #raise ValueError('Array to be searched contains duplicate strings')
+
+        string_list_dict = {string:idx for idx, string in enumerate(string_list)}
+        feat_idx_names = np.array([[string_list_dict[string],string] for string in str_to_find if string in string_list_dict.keys()])   
         
     return feat_idx_names[:,0].astype(int), feat_idx_names[:,1]
 
