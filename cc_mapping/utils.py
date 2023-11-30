@@ -19,8 +19,8 @@ def get_str_idx(str_to_find, string_list, regex=False):
         if np.unique(str_to_find).shape[0] != len(str_to_find):
             raise ValueError('Search array of strings contains duplicate strings')
         
-        if np.unique(string_list).shape[0] != len(string_list):
-            raise ValueError('Array to be searched contains duplicate strings')
+        #if np.unique(string_list).shape[0] != len(string_list):
+            #raise ValueError('Array to be searched contains duplicate strings')
 
         string_list_dict = {string:idx for idx, string in enumerate(string_list)}
         feat_idx_names = np.array([[string_list_dict[string],string] for string in str_to_find if string in string_list_dict.keys()])   
