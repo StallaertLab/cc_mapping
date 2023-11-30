@@ -117,7 +117,22 @@ def general_plotting_function(plotting_function,
                             fontsize = 35,
                             unit_size=10,
                             param_plot_proportion = 0.20):
+    """
+    A general plotting function that creates a grid of subplots for visualization.
 
+    Parameters:
+    - plotting_function: The function used to plot on each subplot.
+    - param_info_dict: A dictionary containing information about the parameters for hyperparameter search.
+    - plotting_dict: A dictionary containing information for plotting.
+    - hyperparam_search: A boolean indicating whether hyperparameter search is enabled.
+    - blank: A boolean indicating whether to return a blank figure.
+    - fontsize: The fontsize for the annotations.
+    - unit_size: The size of each subplot in units.
+    - param_plot_proportion: The proportion of the plot dedicated to parameter labels.
+
+    Returns:
+    - fig: The created figure object.
+    """
 
     if  hyperparam_search == True:
         param_dict = param_info_dict['param_dict']
@@ -238,14 +253,23 @@ def general_plotting_function(plotting_function,
     return fig
 
 def get_legend(adata: ad.AnnData,
-               color: Union[np.ndarray, list]):
+               color_name: str):
+    """ get patches from adata.obs[color_name] to be used for creating a legend and returns the list of colors as well
 
-    if 'phase_colors' in color:
-        colors = adata.obs['phase_colors'].values
-        labels = adata.obs['phase'].values
-    elif 'cell_line_colors' in color:
-        colors= adata.obs['cell_line_colors'].values  
-        labels = adata.obs['cell_line'].values
+    Args:
+        adata (ad.AnnData): AnnData object
+        color (str): name of the anndata obs column to use for coloring (i.e.'cell_line_colors')
+            The labels for the legend will gotten by removing the last underscore and the last word from the color name (i.e. 'cell_line')
+            This will be used to find the obs columns that contain the labels for the legend
+
+    Returns:
+        List[mpatches.Patch], List :patches that will be used to create the legend using matplotlib.pyplot.legend() 
+                                    and the list of colors corresponding to the color name obs column 
+    """
+    colors = adata.obs[color_name].values
+
+    label_name = color_name.split('_')[:-1]
+    labels = adata.obs[label_name].values.squeeze()
 
     col_lab_array = np.array([colors, labels],dtype=str).T
     uni_col_lab_matches = np.unique(col_lab_array, axis=0)

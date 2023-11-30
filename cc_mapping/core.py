@@ -15,7 +15,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 
 import sys
-sys.path.append(r'C:\Users\dap182\Documents\Stallaert_lab\PDAC_pipeline')
+from GLOBAL_VARIABLES.GLOBAL_VARIABLES import cc_mapping_package_dir
+sys.path.append(cc_mapping_package_dir)
 
 from cc_mapping.utils import get_str_idx
 
@@ -132,6 +133,10 @@ def random_forest_feature_selection(adata: ad.AnnData,
 
             if not best_model:
                 best_rf_classifier = trunc_rf_classifier
+                best_train_features = trunc_train_features
+                best_train_labels = trunc_train_labels
+                best_test_features = trunc_test_features
+                best_test_labels = trunc_test_labels
 
             if counter == stable_counter:
                 break
@@ -146,11 +151,11 @@ def random_forest_feature_selection(adata: ad.AnnData,
     print('#########################')
     print()
 
-    trunc_rf_classifier.fit(trunc_train_features, trunc_train_labels)
+    trunc_rf_classifier.fit(best_train_features, best_train_labels)
 
-    trunc_pred_labels=best_rf_classifier.predict(trunc_test_features)
+    trunc_pred_labels=best_rf_classifier.predict(best_test_features)
 
-    print(metrics.classification_report(trunc_test_labels, trunc_pred_labels))
+    print(metrics.classification_report(best_test_labels, trunc_pred_labels))
 
     feat_idxs, _ = get_str_idx(optim_RF_feature_set, adata.var_names.values)
 
