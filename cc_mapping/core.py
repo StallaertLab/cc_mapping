@@ -25,7 +25,25 @@ def random_forest_feature_selection(adata: ad.AnnData,
                                     feature_set_name: str = None,
                                     method: str = 'RF_min_max',
                                     stable_counter: int = 10,
-                                    ):
+                                    ) -> ad.AnnData:
+    """ Trains a random forest classifier on the training feature set and labels using one of two methods:
+        RF_min_30: Selects the top 30 features based on the random forest feature importance
+        RF_min_max: Selects the minimum number of features that maximizes the accuracy of the random forest classifier
+                    This is done by iteratively adding features to the feature set until the accuracy of the classifier
+                    does not improve for x number of iterations
+    
+
+    Args:
+        adata (ad.AnnData): _description_
+        training_feature_set (str): _description_
+        training_labels (str): _description_
+        feature_set_name (str, optional): _description_. Defaults to None.
+        method (str, optional): _description_. Defaults to 'RF_min_max'.
+        stable_counter (int, optional): _description_. Defaults to 10.
+
+    Returns:
+        ad.AnnData: returns the adata object with the feature set added to the .var attribute
+    """
 
     feature_set_idxs, _ = get_str_idx(training_feature_set, adata.var_names.values)
 
@@ -66,9 +84,10 @@ def random_forest_feature_selection(adata: ad.AnnData,
 
     rf_pred_labels=rf_classifier.predict(test_features)
     accuracy = metrics.accuracy_score(test_labels, rf_pred_labels)
-    print(metrics.classification_report(test_labels, rf_pred_labels))
 
     print(f'Primary Random Forest Accuracy: {accuracy}')
+    print('#########################')
+    print(metrics.classification_report(test_labels, rf_pred_labels))
         
     #negative to have it sort from highest to lowest
     sorted_idxs = np.argsort(-rf_classifier.feature_importances_)
@@ -117,11 +136,6 @@ def random_forest_feature_selection(adata: ad.AnnData,
             if counter == stable_counter:
                 break
 
-        trunc_rf_classifier.fit(trunc_train_features, trunc_train_labels)
-
-        trunc_pred_labels=trunc_rf_classifier.predict(trunc_test_features)
-
-        print(metrics.classification_report(trunc_test_labels, trunc_pred_labels))
 
         acc_list = np.array(acc_list)
         max_accuracy = acc_list[max_acc_arg,1]
@@ -129,6 +143,14 @@ def random_forest_feature_selection(adata: ad.AnnData,
         optim_RF_feature_set = sorted_feature_set[:optim_feat_num]
 
     print(f'Max Secondary Random Forest Accuracy: {max_accuracy}')
+    print('#########################')
+    print()
+
+    trunc_rf_classifier.fit(trunc_train_features, trunc_train_labels)
+
+    trunc_pred_labels=best_rf_classifier.predict(trunc_test_features)
+
+    print(metrics.classification_report(trunc_test_labels, trunc_pred_labels))
 
     feat_idxs, _ = get_str_idx(optim_RF_feature_set, adata.var_names.values)
 
