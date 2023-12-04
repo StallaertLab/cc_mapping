@@ -21,7 +21,23 @@ def plot_row_partitions(adata: ad.AnnData,
                         kwargs: dict = {},
                         unit_size: int  = 20,
                         save_path: str = None):
+    """
+    Plot row partitions of the given AnnData object.
 
+    Parameters:
+    adata (ad.AnnData): The AnnData object containing the data.
+    obs_search_term (str): The search term for selecting the observations.
+    color_info_dict: The dictionary containing color information.
+    kwargs (dict, optional): Additional keyword arguments for the plotting function. Defaults to {}.
+    unit_size (int, optional): The size of each unit in the plot. Defaults to 20.
+    save_path (str, optional): The path to save the plot. Defaults to None.
+
+    Raises:
+    ValueError: If the save directory does not exist.
+
+    Returns:
+    None
+    """
     if save_path is not None:
         save_dir = os.path.dirname(save_path)
         if not os.path.exists(save_dir):
@@ -44,7 +60,17 @@ def plot_row_partitions(adata: ad.AnnData,
         fig.savefig(save_path, dpi=300, bbox_inches='tight')
 
 def row_partition_plotting_function(ax, idx_dict, plotting_dict):
+    """
+    Plotting function for row partition.
 
+    Parameters:
+    - ax (matplotlib.axes.Axes): The axes on which to plot.
+    - idx_dict (dict): A dictionary containing row and column indices.
+    - plotting_dict (dict): A dictionary containing plotting parameters.
+
+    Returns:
+    - ax (matplotlib.axes.Axes): The modified axes object.
+    """
     Dof_colors = plotting_dict['Dof_colors']
     plot_all = plotting_dict['plot_all']
 
@@ -64,14 +90,21 @@ def row_partition_plotting_function(ax, idx_dict, plotting_dict):
     color_type = color_dict['color_type']
 
     if color_type == 'continuous': 
-        color_idxs, _ = get_str_idx(color_name, adata.var.X_features.values)
+        color_idx, _ = get_str_idx(color_name, adata.var.X_features.values)
 
-        colors = adata.X[:, color_idxs]
+        colors = adata.X[:, color_idx]
 
     else:
         colors = adata.obs[color_name]
         
     ax.scatter(phate_df[:,0], phate_df[:,1],c='lightgrey', **kwargs)
+
+    if color_type == 'continuous':
+        vmin = np.percentile(colors, 1)
+        vmax = np.percentile(colors, 99)
+        kwargs.update( { 'vmin' : vmin,
+                         'vmax' : vmax,
+                         'cmap' : 'rainbow',})
 
     plotting_df = phate_df
 
@@ -90,13 +123,6 @@ def row_partition_plotting_function(ax, idx_dict, plotting_dict):
         label_idxs = Lof_label_idxs[col_idx-1]
         condition_df =plotting_df[label_idxs,:]
         colors = colors[label_idxs]
-
-    if color_type == 'continuous':
-        vmin = np.percentile(colors, 1)
-        vmax = np.percentile(colors, 99)
-        kwargs.update( { 'vmin' : vmin,
-                         'vmax' : vmax,
-                         'cmap' : 'rainbow',})
 
     ax.scatter(condition_df[:,0], condition_df[:,1], c=colors, **kwargs)
         
