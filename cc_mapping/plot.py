@@ -179,7 +179,7 @@ def general_plotting_function(plotting_function,
         color_names = list(plotting_dict['Dof_colors'].keys())
 
         row_labels = color_names
-        col_labels = adata.obs[search_obs_term].unique()
+        col_labels = np.unique(adata.obs[search_obs_term])
 
         num_cols = len(col_labels)
         num_rows = len(row_labels)

@@ -39,7 +39,7 @@ def get_str_idx(strings_to_find: Union[ str, List[str], np.ndarray[str] ],
         raise ValueError('Search array of strings contains duplicate strings')
     
     #if the string list contains no duplicates, then we can use a dictionary to speed up the search
-    if np.unique(string_list).shape[0] == len(string_list):
+    if np.unique(string_list).shape[0] == len(string_list) and not regex:
 
         string_list_dict = {string:idx for idx, string in enumerate(string_list)}
         feat_idx_names = np.array([[string_list_dict[string],string] for string in strings_to_find if string in string_list_dict.keys()])   
