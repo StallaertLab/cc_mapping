@@ -29,7 +29,7 @@ def get_str_idx(strings_to_find: Union[ str, List[str], np.ndarray[str] ],
     
     if regex:
         search_func = lambda regex, string_to_search: re.search(regex, string_to_search)
-    else: 
+    else:
         search_func = lambda matching_string, string_to_search: matching_string == string_to_search
 
     if type(strings_to_find) == str:
@@ -42,7 +42,8 @@ def get_str_idx(strings_to_find: Union[ str, List[str], np.ndarray[str] ],
     if np.unique(string_list).shape[0] == len(string_list):
 
         string_list_dict = {string:idx for idx, string in enumerate(string_list)}
-        feat_idx_names = np.array([[string_list_dict[string],string] for string in strings_to_find if string in string_list_dict.keys()])   
+        feat_idx_names = np.array([[string_list_dict[string],string] for string in strings_to_find
+                                                                        if string in string_list_dict.keys()])   
     else:
         match_list = []
 
