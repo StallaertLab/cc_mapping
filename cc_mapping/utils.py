@@ -122,6 +122,20 @@ def equalize_cell_lines(adata, equalize_term, exclude_list = ['PANC1'], ignore_m
                 selected_cell_idxs = list(np.random.choice(cond_cell_idxs, size = number_cells_to_grab, replace = False))
                 new_cell_idxs.extend(selected_cell_idxs)
 
+    elif equalize_term == 'cell_lines':
+
+            new_cell_idxs = []
+            for cell_line in cell_counts.keys():
+
+                if cell_line == 'PANC1':
+                    continue
+
+                cell_line_idxs, _ = get_str_idx(cell_line, adata.obs['cell_line'])
+
+                np.random.seed(0)   
+                selected_cell_idxs = list(np.random.choice(cell_line_idxs, size = min_cell_line_num, replace = False))
+                new_cell_idxs.extend(selected_cell_idxs)
+
     false_array = np.repeat(False, adata.shape[0])
     false_array[new_cell_idxs] = True
     adata.obs[f'equalize_{equalize_term}'] = false_array

@@ -28,6 +28,7 @@ def run_palantir_pseudotime(adata: ad.AnnData,
                             plot:bool = True,
                             kwargs: dict = {}):
 
+
     try:
         with open(os.devnull, 'w') as devnull:
                 with contextlib.redirect_stdout(devnull):
@@ -41,9 +42,8 @@ def run_palantir_pseudotime(adata: ad.AnnData,
 
     if plot:
         fig = palantir.plot.plot_palantir_results(adata, embedding_basis = 'X_phate',**kwargs)
-        return fig, adata
-    else:
-        return adata
+        plt.tight_layout()
+        return fig
 
 def palantir_pseudotime_hyperparam_plotting_function(axe, idx_dict, plotting_dict,unit_size=10,s=10):
 
@@ -76,7 +76,7 @@ def palantir_pseudotime_hyperparam_plotting_function(axe, idx_dict, plotting_dic
     root_cell = plotting_dict['root_cell']
     data_key = plotting_dict['data_key']
 
-    fig, _ = run_palantir_pseudotime(adata, root_cell, data_key, n_components, num_waypoints, knn, seed=random_seed, kwargs=kwargs)
+    fig = run_palantir_pseudotime(adata, root_cell, data_key, n_components, num_waypoints, knn, seed=random_seed, kwargs=kwargs)
     
     canvas = fig.canvas
     canvas.draw()
