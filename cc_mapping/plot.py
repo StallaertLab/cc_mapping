@@ -90,7 +90,7 @@ def row_partition_plotting_function(ax, idx_dict, plotting_dict):
     color_type = color_dict['color_type']
 
     if color_type == 'continuous': 
-        color_idx, _ = get_str_idx(color_name, adata.var.X_features.values)
+        color_idx, _ = get_str_idx(color_name, adata.var_names.values)
 
         colors = adata.X[:, color_idx]
 
