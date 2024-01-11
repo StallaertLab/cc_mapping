@@ -170,11 +170,12 @@ def general_plotting_function(plotting_function,
         col_param_name = param_info_dict['col_label']
         constant_param_name = param_info_dict['constant_label']
 
-        row_param_list = param_dict[row_param_name]
-        col_param_list = param_dict[col_param_name]
+        row_labels = param_dict[row_param_name]
+        col_labels = param_dict[col_param_name]
 
-        num_rows = len(row_param_list)
-        num_cols = len(col_param_list)
+        figs_to_generate = len(plotting_dict['color_names'])
+
+        hyperparam_kwargs = {'hyperparam_label_dict': param_info_dict,}
 
     else:
         adata = plotting_dict['adata'].copy()
@@ -194,103 +195,64 @@ def general_plotting_function(plotting_function,
         else:
             col_labels = plotting_dict['column_labels']
 
+        figs_to_generate = 1
 
-        num_cols = len(col_labels)
-        num_rows = len(row_labels)
+        hyperparam_kwargs = {}
 
-    row_cmap = plt.cm.get_cmap('tab20')
-    col_cmap = plt.cm.get_cmap('Dark2')
-
-    width_ratios = [param_plot_proportion] + np.repeat(1,num_cols).tolist()
-    height_ratios = [param_plot_proportion] + np.repeat(1,num_rows).tolist()
+    num_cols = len(col_labels)
+    num_rows = len(row_labels)
 
     anno_opts = dict(xycoords='axes fraction',
                     va='center', ha='center',fontsize = 5*unit_size)
 
-    col_param_limits = np.linspace(0,1,num_cols+1)
-    row_param_limits = np.linspace(0,1,num_rows+1)
+    fig_dict = {f'figure_{fig_idx}':[] for fig_idx in range(figs_to_generate)}
 
-    fig = plt.figure(figsize=(unit_size*num_cols,unit_size*num_rows),constrained_layout=True)
+    for fig_idx in range(figs_to_generate):
 
-    if blank:
-        return fig
+        fig_dict[f'figure_{fig_idx}'] = create_stitched_plot_frame( col_labels=col_labels,
+                                                                    row_labels=row_labels,  
+                                                                    unit_size=unit_size,
+                                                                   param_plot_proportion=param_plot_proportion,
+                                                                   hyperparam_search=hyperparam_search,
+                                                                   anno_opts=anno_opts,
+                                                                   blank=blank,
+                                                                   **hyperparam_kwargs)
+        if blank:
+            return fig_dict[f'figure_{fig_idx}']
 
-    gs = fig.add_gridspec(num_rows+1, num_cols+1, width_ratios=width_ratios, height_ratios=height_ratios)
+
+    final_fig_list = []
 
     plot_idx = 0
-    first = True
-    for row_idx, col_idx in itertools.product(range(num_rows+1), range(num_cols+1)):
-            #this creates the labels on the first row and first column 
-            if row_idx == 0 or col_idx == 0:
-                if first:
-                    #this makes one long plot that spans the first row
-                    init_row = fig.add_subplot(gs[0, 1:])
-                    #this splits the first row into multiple labels based on the number of columns and annotates each one
-                    for col_num in range(num_cols):
+    for row_idx, col_idx in itertools.product(range(1,len(row_labels)+1), range(1,len(col_labels)+1)):
 
-                        left_limit = col_param_limits[col_num]
-                        right_limit = col_param_limits[col_num+1]
 
-                        annotate_xy = (((left_limit + right_limit)/2) , 0.5)
-                        anno_opts['xy'] = annotate_xy
+        idx_dict = {'row_idx':row_idx,
+                    'col_idx':col_idx,
+                    'plot_idx':plot_idx}
+                    
+        axe_list = plotting_function(ax, idx_dict, plotting_dict)
 
-                        init_row.axvspan(left_limit, right_limit, facecolor=row_cmap(col_num), alpha=0.5)
+        for axe_idx, axe in enumerate(axe_list):
+            fig_dict[f'figure_{axe_idx}'].append(axe)
 
-                        if hyperparam_search == True:
-                            init_row.annotate(f'{col_param_name} = {col_param_list[col_num]}', **anno_opts)
-                        else:
-                            init_row.annotate(f'{col_labels[col_num]}', **anno_opts)
+        plot_idx += 1 
 
-                        init_row.set_yticks([])
-                        init_row.set_xticks([])
-                        init_row.set_xlim(0,1)
+    for fig_idx in range(figs_to_generate):
 
-                    #this makes one long plot that spans the first column
-                    init_col = fig.add_subplot(gs[1:,0])
+        temp_fig = fig_dict[f'figure_{fig_idx}'][0]
+        temp_gs = fig_dict[f'figure_{fig_idx}'][1]
 
-                    #this splits the first column into multiple labels based on the number of rows and annotates each one
-                    for row_num in range(num_rows):
-                        upper_limit = row_param_limits[row_num]
-                        lower_limit = row_param_limits[row_num+1]
+        plot_idx = 0
+        for row_idx, col_idx in itertools.product(range(1,len(row_labels)+1), range(1,len(col_labels)+1)):
+        
+            ax = temp_fig.add_subplot(temp_gs[row_idx,col_idx])
 
-                        annotate_xy = (0.5,((lower_limit + upper_limit)/2) )
-                        anno_opts['xy'] = annotate_xy
+            ax = fig_dict[f'figure_{fig_idx}'][plot_idx]
+            
+        final_fig_list.append(temp_fig)
 
-                        init_col.axhspan(lower_limit, upper_limit, facecolor=col_cmap(row_num), alpha=0.5)
-
-                        #Indexing is -(row_num+1) to make the plots go from top to bottom
-                        if hyperparam_search == True:
-                            init_col.annotate(f'{row_param_name} = {row_param_list[-(row_num+1)]}',rotation = 90, **anno_opts)
-                        else:
-                            init_col.annotate(f'{row_labels[-(row_num+1)]}',rotation = 90, **anno_opts)
-
-                        init_col.set_yticks([])
-                        init_col.set_xticks([])
-                        init_col.set_ylim(0,1)
-                        
-                    #add a small box in the upper right corner to indicate what the constant parameter is for the hyperparameter search
-                    if hyperparam_search == True:
-
-                        constant_var_name = param_info_dict['constant_label']
-                        constant_param = fig.add_subplot(gs[0,0])
-                        anno_opts['xy'] = (0.5,0.5)
-                        anno_opts['fontsize'] = 25
-                        constant_param.annotate(f'{constant_var_name}={param_dict[constant_param_name]}', **anno_opts)
-                        constant_param.set_xticks([])
-                        constant_param.set_yticks([])
-
-                    first == False
-                    continue
-
-            ax = fig.add_subplot(gs[row_idx,col_idx])
-
-            idx_dict = {'row_idx':row_idx,
-                        'col_idx':col_idx,
-                        'plot_idx':plot_idx}
-                        
-            ax = plotting_function(ax, idx_dict, plotting_dict)
-            plot_idx += 1 
-    return fig
+    return final_fig_list
 
 def get_legend(adata: ad.AnnData,
                color_name: str):
@@ -308,8 +270,8 @@ def get_legend(adata: ad.AnnData,
     """
     colors = adata.obs[color_name].values
 
-    label_name = color_name.split('_')[:-1]
-    labels = adata.obs[label_name].values.squeeze()
+    label_name = color_name.removesuffix('_colors')
+    labels = adata.obs[label_name].values#.squeeze()
 
     col_lab_array = np.array([colors, labels],dtype=str).T
     uni_col_lab_matches = np.unique(col_lab_array, axis=0)
@@ -418,3 +380,104 @@ def plot_GMM(x: Union[np.ndarray, list],
         axe.hist(x, bins=100, color='black', density=True)
     
     plt.legend()
+def create_stitched_plot_frame( col_labels: Union[list, np.ndarray],
+                                row_labels: Union[list, np.ndarray],
+                                unit_size: int = 10,
+                                row_cmap: mpl.colors.ListedColormap = plt.cm.get_cmap('tab20'),
+                                col_cmap: mpl.colors.ListedColormap = plt.cm.get_cmap('Dark2'),
+                                param_plot_proportion: float = 0.20,
+                                hyperparam_search: bool = False,
+                                hyperparam_label_dict: dict = None,
+                                anno_opts: dict = None,
+                                blank: bool = False,):
+
+    num_cols = len(col_labels)
+    num_rows = len(row_labels)
+
+    if hyperparam_search == True:
+        param_dict = hyperparam_label_dict['param_dict']
+        row_param_name = hyperparam_label_dict['row_label']
+        col_param_name = hyperparam_label_dict['col_label']
+        constant_param_name = hyperparam_label_dict['constant_label']
+
+    width_ratios = [param_plot_proportion] + np.repeat(1,num_cols).tolist()
+    height_ratios = [param_plot_proportion] + np.repeat(1,num_rows).tolist()
+
+    col_param_limits = np.linspace(0,1,num_cols+1)
+    row_param_limits = np.linspace(0,1,num_rows+1)
+
+    fig = plt.figure(figsize=(unit_size*num_cols,unit_size*num_rows),constrained_layout=True)
+
+    if blank:
+        return fig
+
+    gs = fig.add_gridspec(num_rows+1, num_cols+1, width_ratios=width_ratios, height_ratios=height_ratios)
+
+    first = True
+    for row_idx, col_idx in itertools.product(range(num_rows+1), range(num_cols+1)):
+            #this creates the labels on the first row and first column 
+            if row_idx == 0 or col_idx == 0:
+                if first:
+                    #this makes one long plot that spans the first row
+                    init_row = fig.add_subplot(gs[0, 1:])
+                    #this splits the first row into multiple labels based on the number of columns and annotates each one
+                    for col_num in range(num_cols):
+
+                        left_limit = col_param_limits[col_num]
+                        right_limit = col_param_limits[col_num+1]
+
+                        annotate_xy = (((left_limit + right_limit)/2) , 0.5)
+                        anno_opts['xy'] = annotate_xy
+
+                        init_row.axvspan(left_limit, right_limit, facecolor=row_cmap(col_num), alpha=0.5)
+
+                        if hyperparam_search == True:
+                            col_anno_str = f'{col_param_name} = {col_labels[col_num]}'
+                        else:
+                            col_anno_str = f'{col_labels[col_num]}'
+
+                        init_row.annotate(col_anno_str, **anno_opts)
+
+                        init_row.set_yticks([])
+                        init_row.set_xticks([])
+                        init_row.set_xlim(0,1)
+
+                    #this makes one long plot that spans the first column
+                    init_col = fig.add_subplot(gs[1:,0])
+
+                    #this splits the first column into multiple labels based on the number of rows and annotates each one
+                    for row_num in range(num_rows):
+                        upper_limit = row_param_limits[row_num]
+                        lower_limit = row_param_limits[row_num+1]
+
+                        annotate_xy = (0.5,((lower_limit + upper_limit)/2) )
+                        anno_opts['xy'] = annotate_xy
+
+                        init_col.axhspan(lower_limit, upper_limit, facecolor=col_cmap(row_num), alpha=0.5)
+
+                        #Indexing is -(row_num+1) to make the plots go from top to bottom
+                        if hyperparam_search == True:
+                            row_anno_str = f'{row_param_name} = {row_labels[-(row_num+1)]}'
+                        else:
+                            row_anno_str = f'{row_labels[-(row_num+1)]}'
+
+                        init_col.annotate(row_anno_str,rotation = 90, **anno_opts)
+
+                        init_col.set_yticks([])
+                        init_col.set_xticks([])
+                        init_col.set_ylim(0,1)
+                        
+                    #add a small box in the upper right corner to indicate what the constant parameter is for the hyperparameter search
+                    if hyperparam_search == True:
+
+                        constant_var_name = hyperparam_label_dict['constant_label']
+                        constant_param = fig.add_subplot(gs[0,0])
+                        anno_opts['xy'] = (0.5,0.5)
+                        anno_opts['fontsize'] = 25
+                        constant_param.annotate(f'{constant_var_name}={param_dict[constant_param_name]}', **anno_opts)
+                        constant_param.set_xticks([])
+                        constant_param.set_yticks([])
+
+                    first == False
+                    continue
+    return fig, gs

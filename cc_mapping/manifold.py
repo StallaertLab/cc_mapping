@@ -1,4 +1,5 @@
 import anndata as ad
+import pandas as pd
 import scipy.stats as st
 import matplotlib as mpl
 import os
@@ -54,6 +55,14 @@ def plot_phate_coords( colors: Union[np.ndarray,list],
         fig, axe = plt.subplots(1,1, figsize=(10,10))
         phate_coords = adata.obsm[obsm_embedding]
 
+    
+    if not isinstance(colors, pd.Categorical):
+        vmin = np.percentile(colors, 1)
+        vmax = np.percentile(colors, 99)
+        kwargs.update( { 'vmin' : vmin,
+                         'vmax' : vmax,
+                         'cmap' : 'rainbow',})
+
     axe.scatter(phate_coords[:,0], phate_coords[:,1],
         c=colors,
         **kwargs)
@@ -71,7 +80,7 @@ def phate_hyperparameter_search_plotting_function(axe, idx_dict, plotting_dict):
 
     adata = plotting_dict['adata']
     feature_set = plotting_dict['feature_set']
-    color_name = plotting_dict['color_name']
+    color_names = plotting_dict['color_names']
     layer = plotting_dict['layer']
     unit_size = plotting_dict['unit_size']
     kwargs = plotting_dict['kwargs']
@@ -90,18 +99,25 @@ def phate_hyperparameter_search_plotting_function(axe, idx_dict, plotting_dict):
 
     phate_coords = run_phate(adata, feature_set, layer,hyperparam_dict, hyperparam=True)
 
-    colors = adata.obs[color_name].values
+    axe_list = []
+    for color_name in color_names:
+
+        print(color_name)
+        colors = adata.obs_vector(color_name)
+        
+        axe = plot_phate_coords(phate_coords= phate_coords, colors=colors, kwargs=kwargs, axe=axe, hyperparam=True)
+
+        axe_list.append(axe)
     
-    axe = plot_phate_coords(phate_coords= phate_coords, colors=colors, kwargs=kwargs, axe=axe, hyperparam=True)
-    
-    return axe
+    print()
+    return axe_list
 
 def perform_phate_hyperparameter_search(adata: ad.AnnData,
                                   feature_set: str,
                                   layer: str,
                                   hyperparam_dict: dict,
                                   hyperparam_info_dict: dict,
-                                  color_name: list = None,
+                                  color_names: Union[list,str] = None,
                                   save_path: str = None,
                                   unit_size: int = 10,
                                   kwargs: dict = {}):
@@ -125,13 +141,16 @@ def perform_phate_hyperparameter_search(adata: ad.AnnData,
 
     total_num_plots = final_num_rows * final_num_cols
 
-    element_list = []   
-    figure_list = []
+    if isinstance(color_names, str):
+        color_names = [color_names]
+
+    figure_color_dict = {f'figure_{idx}':[] for idx, color in enumerate(color_names)}
+
     for idx in tqdm(range(total_num_plots), total=number_param_plots, desc = 'Generating hyperparameter search plots'):
 
         plotting_dict = {'adata':adata,
                             'feature_set':feature_set,
-                            'color_name':color_name,
+                            'color_names':color_names,
                             'layer':layer,
                             'unit_size':unit_size,
                             'kwargs':kwargs,
@@ -147,19 +166,32 @@ def perform_phate_hyperparameter_search(adata: ad.AnnData,
             plotting_dict['hyperparam_dict'] = temp_hyperparam_dict
             plotting_dict['hyperparam_info_dict'] = temp_hyperparam_info_dict
 
-            fig = general_plotting_function(plotting_function, temp_hyperparam_info_dict, plotting_dict, hyperparam_search = True, unit_size=unit_size)
+            fig_list = general_plotting_function(plotting_function, temp_hyperparam_info_dict, plotting_dict, hyperparam_search = True, unit_size=unit_size)
             
         else:
             #generate a blank plot to fill in the empty space
-            fig = general_plotting_function(plotting_function , temp_hyperparam_info_dict, plotting_dict , blank = True, hyperparam_search = True)
+            fig_list = general_plotting_function(plotting_function , temp_hyperparam_info_dict, plotting_dict , blank = True, hyperparam_search = True)
     
-        figure_list.append(fig)
+        for fig_idx,fig in enumerate(fig_list):
+            figure_color_dict[f'figure_{fig_idx}'].append(fig)
 
-    combined_fig = combine_Lof_plots(figure_list, final_figure_dims)
+    print(figure_color_dict)
 
-    patches,colors = get_legend(adata, color_name)
+    for idx,figure_key in enumerate(figure_color_dict.keys()):
 
-    combined_fig.legend(handles=patches, fontsize = 2*unit_size)
+        figure_list = figure_color_dict[figure_key]
+        color_name = color_names[idx]
+
+        color_vector = adata.obs_vector(color_name)
+
+        combined_fig = combine_Lof_plots(figure_list, final_figure_dims)
+
+        if isinstance(color_vector, pd.Categorical):
+
+            patches,colors = get_legend(adata, color_name)
+            combined_fig.legend(handles=patches, fontsize = 2*unit_size)
+
+        combined_fig.savefig(f'{save_path}_{color_name}.png', dpi=300, bbox_inches='tight')
 
     if save_path is not None:
         fig.savefig(save_path, dpi=300, bbox_inches='tight')
