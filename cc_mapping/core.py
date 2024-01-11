@@ -10,6 +10,10 @@ from tqdm import tqdm
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
+from sklearn.mixture import GaussianMixture 
+
+from typing import Union
+
 from sklearn import metrics
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
@@ -191,3 +195,53 @@ def random_forest_feature_selection(adata: ad.AnnData,
 
     return adata
 
+
+def fit_GMM(x: Union[np.ndarray, list],
+            n_components: int = None, 
+            kwargs: dict = None):
+
+    if kwargs is None:
+        kwargs = {}
+
+    GM = GaussianMixture(n_components=n_components, random_state=0, **kwargs)
+
+    means = GM.fit(x).means_.squeeze()
+    covs = GM.fit(x).covariances_.squeeze()
+    weights = GM.fit(x).weights_
+    data_probs = GM.fit(x).predict_proba(x)
+
+    mean_argsort_idx = np.argsort(means)
+
+    GMM_dict = {'means': means[mean_argsort_idx],
+                'covs': covs[mean_argsort_idx],
+                'weights': weights[mean_argsort_idx],
+                'data_probs': data_probs[:,mean_argsort_idx],
+                'n_components': n_components}
+
+    return GMM_dict
+
+    
+def generate_GMM_labels(adata: ad.AnnData,
+                        GMM_adata: ad.AnnData,
+                        GMM_data_probs: np.ndarray,
+                        argsort_mapping_dict: dict,
+                        color_mapping_dict: dict,
+                        obs_label: str ='GMM_phase'):
+
+    argsort_data_probs = np.argmax(GMM_data_probs, axis=1)
+
+    argsort_phases = [argsort_mapping_dict[arg_idx] for arg_idx in argsort_data_probs]
+
+    GMM_adata_cell_IDs = GMM_adata.obs['CellID'].copy()
+
+    GMM_adata_CI_idxs, _ = get_str_idx(GMM_adata_cell_IDs, adata.obs['CellID'])
+
+    temp_GMM_phases = adata.obs[obs_label].copy()
+
+    for idx, CI_idx in enumerate(GMM_adata_CI_idxs):
+        temp_GMM_phases[CI_idx] = argsort_phases[idx]
+
+    adata.obs[obs_label] =  temp_GMM_phases
+    adata.obs[f"{obs_label}_colors"] = [color_mapping_dict[phase] for phase in adata.obs[obs_label]]
+
+    return adata

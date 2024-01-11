@@ -18,7 +18,7 @@ sys.path.append(os.getcwd())
 from GLOBAL_VARIABLES.GLOBAL_VARIABLES import cc_mapping_package_dir
 sys.path.append(cc_mapping_package_dir)
 
-from cc_mapping.plot import general_plotting_function, get_legend
+from cc_mapping.plot import general_plotting_function, get_legend, combine_Lof_plots
 
 def run_phate(adata: ad.AnnData,
               feature_set:str,
@@ -90,12 +90,10 @@ def phate_hyperparameter_search_plotting_function(axe, idx_dict, plotting_dict):
 
     phate_coords = run_phate(adata, feature_set, layer,hyperparam_dict, hyperparam=True)
 
-    patches,colors = get_legend(adata, color_name)
+    colors = adata.obs[color_name].values
     
     axe = plot_phate_coords(phate_coords= phate_coords, colors=colors, kwargs=kwargs, axe=axe, hyperparam=True)
     
-    plt.legend(handles=patches, fontsize = 2*unit_size)
-
     return axe
 
 def perform_phate_hyperparameter_search(adata: ad.AnnData,
@@ -128,63 +126,44 @@ def perform_phate_hyperparameter_search(adata: ad.AnnData,
     total_num_plots = final_num_rows * final_num_cols
 
     element_list = []   
+    figure_list = []
     for idx in tqdm(range(total_num_plots), total=number_param_plots, desc = 'Generating hyperparameter search plots'):
-
-        temp_hyperparam_dict = hyperparam_dict.copy()
-        temp_hyperparam_info_dict = hyperparam_info_dict.copy()
-        temp_hyperparam_dict[constant_param_name] = hyperparam_dict[constant_param_name][idx]
-        temp_hyperparam_info_dict['param_dict'] = temp_hyperparam_dict
 
         plotting_dict = {'adata':adata,
                             'feature_set':feature_set,
                             'color_name':color_name,
                             'layer':layer,
                             'unit_size':unit_size,
-                            'hyperparam_dict': temp_hyperparam_dict,
-                            'hyperparam_info_dict':temp_hyperparam_info_dict,
                             'kwargs':kwargs,
                             }
 
         # -1 is needed for correct indexing 
         if idx <= number_param_plots-1:
+            temp_hyperparam_dict = hyperparam_dict.copy()
+            temp_hyperparam_info_dict = hyperparam_info_dict.copy()
+            temp_hyperparam_dict[constant_param_name] = hyperparam_dict[constant_param_name][idx]
+            temp_hyperparam_info_dict['param_dict'] = temp_hyperparam_dict
+
+            plotting_dict['hyperparam_dict'] = temp_hyperparam_dict
+            plotting_dict['hyperparam_info_dict'] = temp_hyperparam_info_dict
+
             fig = general_plotting_function(plotting_function, temp_hyperparam_info_dict, plotting_dict, hyperparam_search = True, unit_size=unit_size)
             
         else:
             #generate a blank plot to fill in the empty space
-            fig = general_plotting_function(plotting_function, temp_hyperparam_info_dict, plotting_dict , blank = True, hyperparam_search = True)
+            fig = general_plotting_function(plotting_function , temp_hyperparam_info_dict, plotting_dict , blank = True, hyperparam_search = True)
     
-        canvas = fig.canvas
-        canvas.draw()
+        figure_list.append(fig)
 
-        #this is a numpy array of the plot
-        element = np.array(canvas.buffer_rgba())
+    combined_fig = combine_Lof_plots(figure_list, final_figure_dims)
 
-        element_list.append(element) 
+    patches,colors = get_legend(adata, color_name)
 
-    #shapes the figures generated above into the final figure dimensions
-    counter = 0
-    fig_rows =[]
-    for plot in range(final_num_rows):
-        fig_row = element_list[counter:counter+final_num_cols]
-        fig_row = np.hstack(fig_row)
-        fig_rows.append(fig_row)
-        counter+=final_num_cols
-
-    fig_rows = tuple(fig_rows)
-
-    plot_array = np.vstack(fig_rows)
-
-    mpl.use(backend)
-
-    #plots the final figure
-    fig,ax = plt.subplots(figsize=(unit_size*final_num_cols, unit_size*final_num_rows), constrained_layout=True)
-
-    ax.set_axis_off()
-
-    ax.matshow(plot_array)
-    plt.show()
+    combined_fig.legend(handles=patches, fontsize = 2*unit_size)
 
     if save_path is not None:
         fig.savefig(save_path, dpi=300, bbox_inches='tight')
 
-    return ax            
+    mpl.use(backend)
+
+    return combined_fig            

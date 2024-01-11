@@ -58,88 +58,90 @@ def get_str_idx(strings_to_find: Union[ str, List[str], np.ndarray[str] ],
         
     return feat_idx_names[:,0].astype(int), feat_idx_names[:,1]
 
+def equalize_conditions(adata, obs_str, ignore_min_list = None):
 
-def equalize_cell_lines(adata, equalize_term, exclude_list = ['PANC1'], ignore_min_list = []):
+    obs_values = adata.obs[obs_str].copy()
 
-    #ensures the PANC1 cells are not included in the equalization
-    cell_counts  = Counter(adata.obs['cell_line'])
+    obs_counts = Counter(obs_values)
 
-    for item in exclude_list:
-        cell_counts.pop(item)
+    if ignore_min_list is not None:
+        for obs_val in ignore_min_list:
+            obs_counts.pop(obs_val)
 
-    temp_cell_counts = cell_counts.copy()
+    min_obs_count = np.min(list(obs_counts.values()))
 
-    for item in ignore_min_list:
-        temp_cell_counts.pop(item)
+    idx_list = []
+    for obs_val in obs_counts.keys():
 
-    #finds the smallest cell line population to equalize to
-    min_cell_line_count_idx = np.argmin(list(temp_cell_counts.values()))
+        obs_idxs, _ = utils.get_str_idx(obs_val, obs_values)
 
-    #gets the smallest population
-    min_cell_line_num = list(temp_cell_counts.values())[min_cell_line_count_idx]
+        np.random.seed(0)   
+        selected_obs_idxs = list(np.random.choice(obs_idxs, size = min_obs_count, replace = False))
+        idx_list.extend(selected_obs_idxs)
 
-    cell_line_obs = adata.obs['cell_line'].values
-    unique_cell_lines = np.unique(cell_line_obs)
+        
+    adata = adata[idx_list,:].copy()
 
-    if equalize_term == 'cell_lines_and_conditions' or equalize_term == 'CLC':
+    return adata
 
-        condition_obs = adata.obs['condition'].values
-        unique_conditions = np.unique(condition_obs)
+def equalize_within_two_conditions(adata, first_obs_str, second_obs_str, ignore_min_list = None):
 
-        cells_per_condition = int(min_cell_line_num/len(unique_conditions))
+    f_obs_values = adata.obs[first_obs_str].copy()
+    f_obs_counts = Counter(f_obs_values)
+    unique_f_obs_values = sorted(f_obs_counts.keys())
 
-        all_cc_condition_array = np.array([cell_line_obs, condition_obs],dtype=str).T
+    if ignore_min_list is not None:
+        for obs_val in ignore_min_list:
+            f_obs_counts.pop(obs_val)
 
-        new_cell_idxs = []
-        for cell_line in unique_cell_lines:
+    first_min_obs_count = np.min(f_obs_counts.values())
 
-            #ensures the PANC1 cells are not included in the equalization
-            if cell_line in exclude_list:
-                continue    
+    s_obs_values = adata.obs[second_obs_str].copy()
+    s_obs_counts = Counter(s_obs_values)
+    num_unique_s_obs_values = len(s_obs_counts.keys())
 
-            cell_line_idxs = np.argwhere(all_cc_condition_array[:,0] == cell_line)[:,0]
-            cell_line_condition_array = all_cc_condition_array[cell_line_idxs,:]
+    f_obs_per_s_obs = int(first_min_obs_count/num_unique_s_obs_values)
 
-            num_conditions = [len(cell_line_condition_array[cell_line_condition_array[:,1] == condition]) for condition in unique_conditions]
-            sorted_num_conditions_idxs = np.argsort(num_conditions)
-            sorted_conditions = unique_conditions[sorted_num_conditions_idxs]
-            sorted_num_conditions = np.array(num_conditions)[sorted_num_conditions_idxs]
+    fs_obs_array = np.array([f_obs_values, s_obs_values],dtype=str).T
 
-            for idx, (condition, num_condition) in enumerate(zip(sorted_conditions, sorted_num_conditions), start=1):
+    idx_list = []
+    for f_obs in unique_f_obs_values:
 
-                cond_cell_idxs = np.argwhere((all_cc_condition_array[:,1] == condition) & (all_cc_condition_array[:,0] == cell_line) )[:,0]
+        f_obs_idxs, _ = utils.get_str_idx(f_obs, fs_obs_array[:,0])
+        single_f_obs_array = fs_obs_array[f_obs_idxs,:]
 
-                if num_condition < cells_per_condition:
-                    difference = cells_per_condition - num_condition
-                    number_cells_to_grab = num_condition
+        s_obs_counts = Counter(single_f_obs_array[:,1])
 
-                    if ignore_min_list == []:
-                        cells_per_condition += floor(difference/(len(unique_conditions)-idx))
-                else:
-                    number_cells_to_grab = cells_per_condition
-                
-                np.random.seed(0)   
-                selected_cell_idxs = list(np.random.choice(cond_cell_idxs, size = number_cells_to_grab, replace = False))
-                new_cell_idxs.extend(selected_cell_idxs)
+        s_obs_counts_keys = list(s_obs_counts.keys())
+        s_obs_counts_values = np.array(list(s_obs_counts.values()))
 
-    elif equalize_term == 'cell_lines':
+        argsorted_s_obs_counts = np.argsort(s_obs_counts_values)
 
-            new_cell_idxs = []
-            for cell_line in cell_counts.keys():
+        sorted_s_obs_counts_values = s_obs_counts_values[argsorted_s_obs_counts]
+        sorted_s_obs_counts_keys = s_obs_counts_keys[argsorted_s_obs_counts]
 
-                if cell_line == 'PANC1':
-                    continue
+        for idx, (s_obs_key, s_obs_count) in enumerate(zip(sorted_s_obs_counts_keys, sorted_s_obs_counts_values)):
 
-                cell_line_idxs, _ = get_str_idx(cell_line, adata.obs['cell_line'])
+            s_obs_idxs, _ = utils.get_str_idx(s_obs_key, single_f_obs_array[:,1])
 
-                np.random.seed(0)   
-                selected_cell_idxs = list(np.random.choice(cell_line_idxs, size = min_cell_line_num, replace = False))
-                new_cell_idxs.extend(selected_cell_idxs)
+            if s_obs_count > f_obs_per_s_obs:
 
-    false_array = np.repeat(False, adata.shape[0])
-    false_array[new_cell_idxs] = True
-    adata.obs[f'equalize_{equalize_term}'] = false_array
+                num_idxs_to_add = f_obs_per_s_obs
 
-    adata = adata[adata.obs[f'equalize_{equalize_term}'],:].copy()
+            else:
+
+                num_idxs_to_add = s_obs_count
+
+                difference = f_obs_per_s_obs - s_obs_count
+
+                #if a s_obs_key does not have enought observations, then we need to add the differece to the total needed from the other s_obs_keys
+                #TODO: this can lead to a situation where the last s_obs_key may not have enough observations to equalize the conditions
+                f_obs_per_s_obs += floor(difference/num_unique_s_obs_values-idx)
+
+            np.random.seed(0)   
+            selected_obs_idxs = list(np.random.choice(s_obs_idxs, size = num_idxs_to_add, replace = False))
+            idx_list.extend(selected_obs_idxs)
+                    
+    adata = adata[idx_list,:].copy()
 
     return adata

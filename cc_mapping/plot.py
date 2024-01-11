@@ -1,9 +1,11 @@
+import matplotlib as mpl
 import matplotlib.patches as mpatches
 import os 
 import anndata as ad
+import scipy.stats as st
 import matplotlib.pyplot as plt
 import numpy as np
-from typing import Union
+from typing import Union,List
 import itertools
 import anndata as ad
 
@@ -18,7 +20,9 @@ from cc_mapping.utils import get_str_idx
 def plot_row_partitions(adata: ad.AnnData,
                         obs_search_term: str,
                         color_info_dict, 
+                        column_labels: Union[list, np.ndarray] = None,
                         kwargs: dict = {},
+                        plot_all: bool = True,
                         unit_size: int  = 20,
                         save_path: str = None):
     """
@@ -48,13 +52,15 @@ def plot_row_partitions(adata: ad.AnnData,
     plotting_dict = {'adata': adata,
                     'Dof_colors': color_info_dict,
                     'obs_search_term': obs_search_term,
-                     'plot_all': True,
                      'kwargs': {}
                      }
     if kwargs != {}:
         plotting_dict['kwargs'] = kwargs
 
-    fig = general_plotting_function(plotting_function, {} , plotting_dict, unit_size=unit_size)
+    if column_labels is not None:
+        plotting_dict['column_labels'] = column_labels
+
+    fig = general_plotting_function(plotting_function, {} , plotting_dict, unit_size=unit_size, plot_all=plot_all)
 
     if save_path is not None:
         fig.savefig(save_path, dpi=300, bbox_inches='tight')
@@ -72,7 +78,7 @@ def row_partition_plotting_function(ax, idx_dict, plotting_dict):
     - ax (matplotlib.axes.Axes): The modified axes object.
     """
     Dof_colors = plotting_dict['Dof_colors']
-    plot_all = plotting_dict['plot_all']
+    column_labels = plotting_dict['column_labels']
 
     kwargs = plotting_dict['kwargs'].copy()
 
@@ -90,6 +96,7 @@ def row_partition_plotting_function(ax, idx_dict, plotting_dict):
     color_type = color_dict['color_type']
 
     if color_type == 'continuous': 
+
         color_idx, _ = get_str_idx(color_name, adata.var_names.values)
 
         colors = adata.X[:, color_idx]
@@ -99,7 +106,7 @@ def row_partition_plotting_function(ax, idx_dict, plotting_dict):
         
     ax.scatter(phate_df[:,0], phate_df[:,1],c='lightgrey', **kwargs)
 
-    if color_type == 'continuous':
+    if 'continuous' in color_type:
         vmin = np.percentile(colors, 1)
         vmax = np.percentile(colors, 99)
         kwargs.update( { 'vmin' : vmin,
@@ -108,14 +115,9 @@ def row_partition_plotting_function(ax, idx_dict, plotting_dict):
 
     plotting_df = phate_df
 
-    uniq_labels = np.unique(adata.obs[obs_search_term])
+    Lof_label_idxs = [get_str_idx(label, adata.obs[obs_search_term])[0] for label in column_labels if label != 'ALL']
 
-    Lof_label_idxs = [get_str_idx(label, adata.obs[obs_search_term])[0] for label in uniq_labels]
-
-    if plot_all:
-        uniq_labels = np.append(uniq_labels, 'ALL')
-
-    current_plotting_label = uniq_labels[col_idx-1]
+    current_plotting_label = column_labels[col_idx-1]
 
     if current_plotting_label == 'ALL':
         condition_df = plotting_df 
@@ -139,6 +141,7 @@ def general_plotting_function(plotting_function,
                             param_info_dict = None,
                             plotting_dict = None,
                             hyperparam_search = False,
+                            plot_all = False,
                             blank = False,
                             fontsize = 35,
                             unit_size=10,
@@ -179,7 +182,18 @@ def general_plotting_function(plotting_function,
         color_names = list(plotting_dict['Dof_colors'].keys())
 
         row_labels = color_names
-        col_labels = np.unique(adata.obs[search_obs_term])
+
+        if not plotting_dict.get('column_labels'):
+            col_labels = np.unique(adata.obs[search_obs_term])
+
+            if plot_all:
+                col_labels = np.append(col_labels, 'ALL')
+
+            plotting_dict['column_labels'] = col_labels 
+
+        else:
+            col_labels = plotting_dict['column_labels']
+
 
         num_cols = len(col_labels)
         num_rows = len(row_labels)
@@ -306,3 +320,101 @@ def get_legend(adata: ad.AnnData,
         patch_list.append(patch)
 
     return patch_list, colors
+
+def combine_Lof_plots(Lof_plots: List[mpl.figure.Figure],
+                      fig_dims: tuple,
+                      default_padding: tuple = (0,0),
+                      default_padding_color: tuple = 255):
+
+    #converts the figures into numpy arrays
+    for fig_idx, fig in enumerate(Lof_plots):
+        canvas = fig.canvas
+        canvas.draw()
+
+        element = np.array(canvas.buffer_rgba())
+
+        Lof_plots[fig_idx] = element
+
+
+    max_figure_dims = np.max([(fig.shape[0],fig.shape[1]) for fig in Lof_plots],axis=0)
+
+    for fig_idx, fig in enumerate(Lof_plots):
+
+        row_diff = max_figure_dims[0] - fig.shape[0]
+        col_diff = max_figure_dims[1] - fig.shape[1]
+
+        if row_diff > 0:
+            fig = np.pad(fig, ((floor(row_diff/2),ceil(row_diff/2)),(0,0),(0,0)), 'constant', constant_values=255)
+        if col_diff > 0:
+            fig = np.pad(fig, ((0,0),(floor(col_diff/2),ceil(col_diff/2)), (0,0)), 'constant', constant_values=255)
+
+        default_row_padding = default_padding[0]
+        default_col_padding = default_padding[1]
+
+        fig = np.pad(fig, ((default_row_padding,default_row_padding),(default_col_padding,default_col_padding), (0,0)), 'constant', constant_values=default_padding_color)
+
+        Lof_plots[fig_idx] = fig
+
+    final_num_rows = fig_dims[0]
+    final_num_cols = fig_dims[1]
+
+    #shapes the figures generated above into the final figure dimensions
+    counter = 0
+    fig_rows =[]
+    for plot in range(final_num_rows):
+        fig_row = Lof_plots[counter:counter+final_num_cols]
+        fig_row = np.hstack(fig_row)
+        fig_rows.append(fig_row)
+        counter+=final_num_cols
+
+    fig_rows = tuple(fig_rows)
+
+    plot_array = np.vstack(fig_rows)
+
+    f_unit_size = 15
+    #plots the final figure
+    fig,ax = plt.subplots(figsize=(f_unit_size*final_num_cols, f_unit_size*final_num_rows), constrained_layout=True, dpi =600)
+
+    ax.matshow(plot_array)
+
+    ax.axis('off')
+    return fig
+
+def plot_GMM(x: Union[np.ndarray, list],
+             GMM_dict: dict,
+             num_std: int =3,
+             plot_all: bool =True):
+
+    n_components = GMM_dict['n_components']
+    means = GMM_dict['means']
+    covs = GMM_dict['covs']
+    weights = GMM_dict['weights']
+    labels = GMM_dict['labels']
+    colors = GMM_dict['colors']
+
+    unit_size = 5
+    if not all:
+        fig, ax = plt.subplots(1,n_components,figsize=(unit_size*n_components,  unit_size), sharex=True)
+    else:
+        fig, ax = plt.subplots(1,1,figsize=(unit_size,  unit_size))
+
+    for guas_idx in range(n_components):
+        g_mean = means[guas_idx]
+        g_cov = covs[guas_idx]
+        g_weight = weights[guas_idx]
+
+        std = np.sqrt(g_cov)
+
+        x_axis = np.arange(g_mean-num_std*std, g_mean+num_std*std, 0.01)
+
+        y_axis = st.norm.pdf(x_axis, loc=g_mean, scale=std)*g_weight
+
+        if not all:
+            axe = ax[guas_idx]
+        else:
+            axe = ax
+
+        axe.plot(x_axis, y_axis, label=labels[guas_idx], lw=3, color=colors[guas_idx])
+        axe.hist(x, bins=100, color='black', density=True)
+    
+    plt.legend()

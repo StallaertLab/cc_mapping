@@ -3,6 +3,12 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+#custom ignores
+data/
+figs/
+GLOBAL_VARIABLES/
+GLOBAL_VARIABLES.py
+
 # C extensions
 *.so
 
