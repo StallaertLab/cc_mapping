@@ -22,14 +22,52 @@ import sys
 from GLOBAL_VARIABLES.GLOBAL_VARIABLES import cc_mapping_package_dir
 sys.path.append(cc_mapping_package_dir)
 
-from cc_mapping.utils import get_str_idx
+from cc_mapping import utils
+
+def train_random_forest_model(features,
+                              labels,
+                              rf_params: dict ,
+                              random_state: bool,
+                              train_test_split_params: dict,
+                              verbose: bool = True,
+                              ):
+
+    train_features, test_features, train_labels, test_labels = train_test_split(features,
+                                                                                labels,
+                                                                                random_state = random_state,
+                                                                                **train_test_split_params)
+    rf_classifier = RandomForestClassifier(random_state = random_state, **rf_params)
+
+    rf_classifier.fit(train_features, train_labels)
+
+    rf_pred_labels=rf_classifier.predict(test_features)
+
+    accuracy = metrics.accuracy_score(test_labels, rf_pred_labels)
+
+    if verbose:
+        print()
+        print(f'Classification Report for RF model trained with given feature set')
+        print('##################################################################')
+        print()
+        print(metrics.classification_report(test_labels, rf_pred_labels))
+
+    return rf_classifier, accuracy
 
 def random_forest_feature_selection(adata: ad.AnnData,
                                     training_feature_set: str,
                                     training_labels: str,
                                     feature_set_name: str = None,
                                     method: str = 'RF_min_max',
+                                    random_state: int = 42,
+                                    threshold: float = 0.01,
                                     stable_counter: int = 10,
+                                    plot: bool = True,
+                                    train_test_split_params: dict = {'test_size':0.25},
+                                    rf_params: dict = {'min_samples_leaf':50,
+                                                        'n_estimators':150,
+                                                        'bootstrap':True,
+                                                        'oob_score':True,
+                                                        'n_jobs':-1, },
                                     ) -> ad.AnnData:
                                     
     """ Trains a random forest classifier on the training feature set and labels using one of two methods:
@@ -51,10 +89,10 @@ def random_forest_feature_selection(adata: ad.AnnData,
         ad.AnnData: returns the adata object with the feature set added to the .var attribute
     """
 
-    feature_set_idxs, _ = get_str_idx(training_feature_set, adata.var_names.values)
+    feature_set_idxs, _ = utils.get_str_idx(training_feature_set, adata.var_names.values)
 
     try:
-        phase_nan_idx, _ = get_str_idx('nan', adata.obs[training_labels])
+        phase_nan_idx, _ = utils.get_str_idx('nan', adata.obs[training_labels])
     except:
         phase_nan_idx = []
 
@@ -74,28 +112,11 @@ def random_forest_feature_selection(adata: ad.AnnData,
     # Convert to numpy array
     features = trunc_cell_data
 
-    # Split the data into training and testing sets
-    train_features, test_features, train_labels, test_labels = train_test_split(features, labels, test_size = 0.25, random_state = 42)
-
-    # Instantiate model 
-    rf_classifier = RandomForestClassifier(
-                        min_samples_leaf=50,
-                        n_estimators=150,
-                        bootstrap=True,
-                        oob_score=True,
-                        n_jobs=-1,
-                        random_state=42)
-
-    rf_classifier.fit(train_features, train_labels)
-
-    rf_pred_labels=rf_classifier.predict(test_features)
-    accuracy = metrics.accuracy_score(test_labels, rf_pred_labels)
-
-    print()
-    print(f'Classification Report for RF model trained with given feature set')
-    print('##################################################################')
-    print()
-    print(metrics.classification_report(test_labels, rf_pred_labels))
+    rf_classifier, _ = train_random_forest_model(features = features,
+                                                 labels = labels,
+                                                 rf_params = rf_params,
+                                                 train_test_split_params=train_test_split_params,
+                                                 random_state=random_state)
         
     #negative to have it sort from highest to lowest
     sorted_idxs = np.argsort(-rf_classifier.feature_importances_)
@@ -108,72 +129,45 @@ def random_forest_feature_selection(adata: ad.AnnData,
 
         counter = 0
         max_acc_arg = 0
-        acc_list = []
-        first=True
-        for num_cols in tqdm(range(1, sorted_features.shape[1]+1),total= sorted_features.shape[1], desc = f'Training RF model iteratively using most important RF features until {stable_counter} stable iterations'):
+        acc_list = [0]
+        for num_feats in tqdm(range(1, sorted_features.shape[1]+1),total= sorted_features.shape[1], desc = f'Training RF model iteratively using most important RF features until {stable_counter} stable iterations'):
 
-            trunc_feature_set = sorted_features[:,:num_cols]
+            trunc_feature_set = sorted_features[:,:num_feats]
 
-            trunc_train_features, trunc_test_features, trunc_train_labels, trunc_test_labels = train_test_split(trunc_feature_set, labels, test_size = 0.25, random_state = 42)
+            _ , accuracy = train_random_forest_model(features = trunc_feature_set,
+                                                        labels = labels,
+                                                        rf_params = rf_params,
+                                                        train_test_split_params=train_test_split_params,
+                                                        random_state=random_state,
+                                                        verbose=False)
+            acc_list.append(accuracy)
 
-            trunc_rf_classifier = RandomForestClassifier(
-                                min_samples_leaf=50,
-                                n_estimators=150,
-                                bootstrap=True,
-                                oob_score=True,
-                                n_jobs=-1,
-                                random_state=42)
-
-            trunc_rf_classifier.fit(trunc_train_features, trunc_train_labels)
-
-            trunc_pred_labels=trunc_rf_classifier.predict(trunc_test_features)
-
-            accuracy = metrics.accuracy_score(trunc_test_labels, trunc_pred_labels)
-            acc_list.append([num_cols,accuracy])
-
-            if max_acc_arg == np.argmax(np.array(acc_list)[:,1]):
-                best_model = True
+            if max_acc_arg == np.argmax(acc_list):
                 counter += 1
             else:
-                best_model = False
-                max_acc_arg = np.argmax(np.array(acc_list)[:,1])
-                counter = 0
-
-            if first ==True or best_model == False:
-                best_rf_classifier = trunc_rf_classifier
-                best_train_features = trunc_train_features
-                best_train_labels = trunc_train_labels
-                best_test_features = trunc_test_features
-                best_test_labels = trunc_test_labels
-                first = False
+                acc_difference = np.abs(acc_list[max_acc_arg] - accuracy)
+                if acc_difference > threshold:
+                    max_acc_arg = np.argmax(acc_list)
+                    counter = 0
+                    continue
+                
+                counter += 1
 
             if counter == stable_counter:
                 break
 
 
         acc_list = np.array(acc_list)
-        max_accuracy = acc_list[max_acc_arg,1]
         optim_feat_num = max_acc_arg + 1
         optim_RF_feature_set = sorted_feature_set[:optim_feat_num]
 
-    print()
-    print(f'Classification Report for Optimal RF model trained with {optim_feat_num} features')
-    print('##################################################################################')
-    print()
+    optim_feature_set = sorted_features[:,:optim_feat_num]
 
-    trunc_rf_classifier = RandomForestClassifier(
-                        min_samples_leaf=50,
-                        n_estimators=150,
-                        bootstrap=True,
-                        oob_score=True,
-                        n_jobs=-1,
-                        random_state=42)
-
-    trunc_rf_classifier.fit(best_train_features, best_train_labels)
-
-    trunc_pred_labels=best_rf_classifier.predict(best_test_features)
-
-    print(metrics.classification_report(best_test_labels, trunc_pred_labels))
+    _ = train_random_forest_model(features = optim_feature_set,
+                                    labels = labels,
+                                    rf_params = rf_params,
+                                    train_test_split_params=train_test_split_params,
+                                    random_state=random_state,)
 
     print()
     print('##################################################################################')
@@ -183,7 +177,7 @@ def random_forest_feature_selection(adata: ad.AnnData,
     print('###################################################')
     print(optim_RF_feature_set)
 
-    feat_idxs, _ = get_str_idx(optim_RF_feature_set, adata.var_names.values)
+    feat_idxs, _ = utils.get_str_idx(optim_RF_feature_set, adata.var_names.values)
 
     fs_bool = np.repeat(False, adata.shape[1])
     fs_bool[feat_idxs] = True
@@ -193,8 +187,26 @@ def random_forest_feature_selection(adata: ad.AnnData,
 
     adata.var[feature_set_name] = fs_bool
 
-    return adata
+    if plot:
+        fig = plt.figure(figsize=(10,5))
 
+        x_axis = np.arange( len(acc_list), dtype=int)
+        plt.plot(x_axis, acc_list)
+        plt.axvline(optim_feat_num, color='r', linestyle='--', label=f'Optimal Feature Set Size: {optim_feat_num}')
+        plt.title(f'Stable Counter {stable_counter} - Stable Threshold {threshold*100}%')
+        plt.xticks(x_axis)
+
+        percentages = np.arange(0,110,10,dtype=int).tolist()
+        rounded_percentages =  [ f'{elem} %' for elem in percentages ]
+        plt.grid(visible = True, alpha = 0.5, linestyle = '--', which = 'both')
+        plt.yticks(np.arange(0,1.1,0.1), rounded_percentages)
+        plt.xlabel('Number of Features')
+        plt.ylabel('Accuracy')
+        plt.xlim(0, len(acc_list)-1)
+        plt.ylim(0,1.05)
+        plt.legend(loc='lower right')
+
+    return adata
 
 def fit_GMM(x: Union[np.ndarray, list],
             n_components: int = None, 

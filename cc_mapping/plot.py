@@ -1,4 +1,5 @@
 import matplotlib as mpl
+import pandas as pd
 import matplotlib.patches as mpatches
 import os 
 import anndata as ad
@@ -19,7 +20,7 @@ from cc_mapping.utils import get_str_idx
 
 def plot_row_partitions(adata: ad.AnnData,
                         obs_search_term: str,
-                        color_info_dict, 
+                        colors: Union[list, np.ndarray] = None,
                         column_labels: Union[list, np.ndarray] = None,
                         kwargs: dict = {},
                         plot_all: bool = True,
@@ -50,7 +51,7 @@ def plot_row_partitions(adata: ad.AnnData,
     plotting_function = row_partition_plotting_function
     
     plotting_dict = {'adata': adata,
-                    'Dof_colors': color_info_dict,
+                    'Lof_colors': colors,
                     'obs_search_term': obs_search_term,
                      'kwargs': {}
                      }
@@ -77,7 +78,7 @@ def row_partition_plotting_function(ax, idx_dict, plotting_dict):
     Returns:
     - ax (matplotlib.axes.Axes): The modified axes object.
     """
-    Dof_colors = plotting_dict['Dof_colors']
+    Lof_colors = plotting_dict['Lof_colors']
     column_labels = plotting_dict['column_labels']
 
     kwargs = plotting_dict['kwargs'].copy()
@@ -90,23 +91,13 @@ def row_partition_plotting_function(ax, idx_dict, plotting_dict):
     row_idx = idx_dict['row_idx']
     col_idx = idx_dict['col_idx']
 
-    color_name = list(Dof_colors.keys())[row_idx-1]
-    color_dict = Dof_colors[color_name]
+    color_name = Lof_colors[row_idx-1]
 
-    color_type = color_dict['color_type']
-
-    if color_type == 'continuous': 
-
-        color_idx, _ = get_str_idx(color_name, adata.var_names.values)
-
-        colors = adata.X[:, color_idx]
-
-    else:
-        colors = adata.obs[color_name]
-        
     ax.scatter(phate_df[:,0], phate_df[:,1],c='lightgrey', **kwargs)
 
-    if 'continuous' in color_type:
+    colors = adata.obs_vector(color_name)
+
+    if colors.dtype != 'object' and not isinstance(colors, pd.Categorical):
         vmin = np.percentile(colors, 1)
         vmax = np.percentile(colors, 99)
         kwargs.update( { 'vmin' : vmin,
@@ -179,7 +170,7 @@ def general_plotting_function(plotting_function,
     else:
         adata = plotting_dict['adata'].copy()
         search_obs_term = plotting_dict['obs_search_term']
-        color_names = list(plotting_dict['Dof_colors'].keys())
+        color_names = plotting_dict['Lof_colors']
 
         row_labels = color_names
 
@@ -306,10 +297,10 @@ def get_legend(adata: ad.AnnData,
         List[mpatches.Patch], List :patches that will be used to create the legend using matplotlib.pyplot.legend() 
                                     and the list of colors corresponding to the color name obs column 
     """
-    colors = adata.obs[color_name].values
+    colors = adata.obs_vector(color_name)
 
-    label_name = color_name.split('_')[:-1]
-    labels = adata.obs[label_name].values.squeeze()
+    label_name = color_name.removesuffix('_colors')
+    labels = adata.obs[label_name].values
 
     col_lab_array = np.array([colors, labels],dtype=str).T
     uni_col_lab_matches = np.unique(col_lab_array, axis=0)

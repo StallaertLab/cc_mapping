@@ -1,5 +1,6 @@
 import anndata as ad
 import scipy.stats as st
+import pandas as pd
 import matplotlib as mpl
 import os
 import numpy as np
@@ -7,6 +8,7 @@ np.seterr(all="ignore")
 import anndata as ad
 from tqdm import tqdm
 import matplotlib as mpl
+from matplotlib.axes import Axes
 import matplotlib.pyplot as plt
 import phate
 
@@ -41,18 +43,30 @@ def run_phate(adata: ad.AnnData,
     return adata
 
 
-def plot_phate_coords( colors: Union[np.ndarray,list],
+def plot_phate_coords(adata: ad.AnnData = None,
+                      colors: Union[np.ndarray,list] = None,
                       phate_coords: np.ndarray= None,
                       kwargs: dict = {},
-                      adata: ad.AnnData = None,
                       axe: mpl.axes = None,
                       hyperparam: bool = False,
-                      obsm_embedding: str = 'X_phate'
-                      ):
+                      obsm_embedding: str = 'X_phate',
+                      return_fig: bool = False):
+
+    if not axe:
+        fig, axe = plt.subplots(1,1, figsize=(10,10))
 
     if not hyperparam:
-        fig, axe = plt.subplots(1,1, figsize=(10,10))
         phate_coords = adata.obsm[obsm_embedding]
+
+    colors = adata.obs_vector(colors)
+
+    #if not isinstance(colors, pd.Categorical):
+    if colors.dtype != 'object' and not isinstance(colors, pd.Categorical):
+        vmin = np.percentile(colors, 1)
+        vmax = np.percentile(colors, 99)
+        kwargs.update( { 'vmin' : vmin,
+                        'vmax' : vmax,
+                        'cmap' : 'rainbow',})
 
     axe.scatter(phate_coords[:,0], phate_coords[:,1],
         c=colors,
@@ -61,6 +75,9 @@ def plot_phate_coords( colors: Union[np.ndarray,list],
     axe.axis('off')
     axe.set_yticks([])
     axe.set_xticks([])
+
+    if return_fig:
+        return fig, axe
 
     return axe
 
@@ -90,9 +107,8 @@ def phate_hyperparameter_search_plotting_function(axe, idx_dict, plotting_dict):
 
     phate_coords = run_phate(adata, feature_set, layer,hyperparam_dict, hyperparam=True)
 
-    colors = adata.obs[color_name].values
-    
-    axe = plot_phate_coords(phate_coords= phate_coords, colors=colors, kwargs=kwargs, axe=axe, hyperparam=True)
+    #colors = adata.obs[color_name].values
+    axe = plot_phate_coords(adata=adata, phate_coords= phate_coords, colors=color_name, kwargs=kwargs, axe=axe, hyperparam=True)
     
     return axe
 
@@ -103,6 +119,7 @@ def perform_phate_hyperparameter_search(adata: ad.AnnData,
                                   hyperparam_info_dict: dict,
                                   color_name: list = None,
                                   save_path: str = None,
+                                  legend: bool = False,
                                   unit_size: int = 10,
                                   kwargs: dict = {}):
 
@@ -125,6 +142,9 @@ def perform_phate_hyperparameter_search(adata: ad.AnnData,
 
     total_num_plots = final_num_rows * final_num_cols
 
+    if total_num_plots < number_param_plots:
+        raise ValueError(f'Number of plots ({number_param_plots}) exceeds the number of subplots ({total_num_plots})')
+        
     element_list = []   
     figure_list = []
     for idx in tqdm(range(total_num_plots), total=number_param_plots, desc = 'Generating hyperparameter search plots'):
@@ -157,12 +177,14 @@ def perform_phate_hyperparameter_search(adata: ad.AnnData,
 
     combined_fig = combine_Lof_plots(figure_list, final_figure_dims)
 
-    patches,colors = get_legend(adata, color_name)
+    color_vector = adata.obs_vector(color_name)
 
-    combined_fig.legend(handles=patches, fontsize = 2*unit_size)
+    if (color_vector.dtype == 'object' or isinstance(color_vector, pd.Categorical)) and legend:
+        patches,colors = get_legend(adata, color_name)
+        combined_fig.legend(handles=patches, fontsize = 2*unit_size)
 
     if save_path is not None:
-        fig.savefig(save_path, dpi=300, bbox_inches='tight')
+        combined_fig.savefig(save_path, dpi=300, bbox_inches='tight')
 
     mpl.use(backend)
 
