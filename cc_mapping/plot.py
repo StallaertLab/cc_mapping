@@ -2,6 +2,7 @@ import matplotlib as mpl
 import pandas as pd
 import matplotlib.patches as mpatches
 import os 
+import matplotlib._pylab_helpers
 import anndata as ad
 import scipy.stats as st
 import matplotlib.pyplot as plt
@@ -9,6 +10,7 @@ import numpy as np
 from typing import Union,List
 import itertools
 import anndata as ad
+from math import floor, ceil
 
 import sys
 sys.path.append(os.getcwd())
@@ -312,10 +314,35 @@ def get_legend(adata: ad.AnnData,
 
     return patch_list, colors
 
-def combine_Lof_plots(Lof_plots: List[mpl.figure.Figure],
-                      fig_dims: tuple,
+def combine_Lof_plots(Lof_plots: List[mpl.figure.Figure] = None,
+                      fig_dims: tuple = None,
                       default_padding: tuple = (0,0),
-                      default_padding_color: tuple = 255):
+                      default_padding_color: tuple = 255,
+                      save_path: str = None,
+                      title_kwargs: dict = None,
+                      title: str = None,
+                      inline: bool = False):
+
+    """
+    Combines a list of matplotlib figures into a single figure with specified dimensions.
+
+    Parameters:
+    - Lof_plots (List[mpl.figure.Figure]): List of matplotlib figures to be combined. If `inline` is True, this parameter is ignored.
+    - fig_dims (tuple): Dimensions of the final combined figure in terms of number of rows and columns.
+    - default_padding (tuple): Padding to be applied to each figure in terms of number of rows and columns.
+    - default_padding_color (tuple): Color value (RGB) to be used for the default padding.
+    - save_path (str): Path to save the combined figure. If not provided, the figure will be displayed.
+    - title_kwargs (dict): Keyword arguments for customizing the title of the combined figure.
+    - title (str): Title of the combined figure.
+    - inline (bool): If True, the function will automatically retrieve all open figures and combine them. The `Lof_plots` parameter will be ignored.
+
+    Returns:
+     - None
+    """
+
+    if inline:
+        Lof_plots=[manager.canvas.figure
+                for manager in matplotlib._pylab_helpers.Gcf.get_all_fig_managers()]
 
     #converts the figures into numpy arrays
     for fig_idx, fig in enumerate(Lof_plots):
@@ -326,6 +353,9 @@ def combine_Lof_plots(Lof_plots: List[mpl.figure.Figure],
 
         Lof_plots[fig_idx] = element
 
+    if inline:
+        for fig in plt.get_fignums():
+            plt.close(fig)
 
     max_figure_dims = np.max([(fig.shape[0],fig.shape[1]) for fig in Lof_plots],axis=0)
 
@@ -349,6 +379,11 @@ def combine_Lof_plots(Lof_plots: List[mpl.figure.Figure],
     final_num_rows = fig_dims[0]
     final_num_cols = fig_dims[1]
 
+    if len(Lof_plots) < final_num_rows*final_num_cols:
+        fig_num_diff = final_num_rows*final_num_cols - len(Lof_plots)
+        for _ in range(fig_num_diff):
+            Lof_plots.append(np.ones_like(fig)*default_padding_color)
+
     #shapes the figures generated above into the final figure dimensions
     counter = 0
     fig_rows =[]
@@ -368,44 +403,14 @@ def combine_Lof_plots(Lof_plots: List[mpl.figure.Figure],
 
     ax.matshow(plot_array)
 
+    if title:
+        ax.set_title(title, **title_kwargs)
+
     ax.axis('off')
-    return fig
-
-def plot_GMM(x: Union[np.ndarray, list],
-             GMM_dict: dict,
-             num_std: int =3,
-             plot_all: bool =True):
-
-    n_components = GMM_dict['n_components']
-    means = GMM_dict['means']
-    covs = GMM_dict['covs']
-    weights = GMM_dict['weights']
-    labels = GMM_dict['labels']
-    colors = GMM_dict['colors']
-
-    unit_size = 5
-    if not all:
-        fig, ax = plt.subplots(1,n_components,figsize=(unit_size*n_components,  unit_size), sharex=True)
+    if save_path:
+        plt.savefig(save_path, dpi=600, bbox_inches='tight')
+    elif inline:
+        plt.show()
+        plt.close()
     else:
-        fig, ax = plt.subplots(1,1,figsize=(unit_size,  unit_size))
-
-    for guas_idx in range(n_components):
-        g_mean = means[guas_idx]
-        g_cov = covs[guas_idx]
-        g_weight = weights[guas_idx]
-
-        std = np.sqrt(g_cov)
-
-        x_axis = np.arange(g_mean-num_std*std, g_mean+num_std*std, 0.01)
-
-        y_axis = st.norm.pdf(x_axis, loc=g_mean, scale=std)*g_weight
-
-        if not all:
-            axe = ax[guas_idx]
-        else:
-            axe = ax
-
-        axe.plot(x_axis, y_axis, label=labels[guas_idx], lw=3, color=colors[guas_idx])
-        axe.hist(x, bins=100, color='black', density=True)
-    
-    plt.legend()
+        return fig
