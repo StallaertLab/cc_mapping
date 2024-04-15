@@ -108,6 +108,7 @@ def random_forest_feature_selection(adata: ad.AnnData,
                                     threshold: float = 0.01,
                                     stable_counter: int = 3,
                                     plot: bool = True,
+                                    verbose: bool = True,
                                     cutoff_method: str = 'increment',
                                     train_test_split_params: dict = {'test_size':0.25},
                                     rf_params: dict = {'min_samples_leaf':50,
@@ -175,6 +176,7 @@ def random_forest_feature_selection(adata: ad.AnnData,
                                                  labels = labels,
                                                  rf_params = rf_params,
                                                  train_test_split_params=train_test_split_params,
+                                                 verbose=verbose,
                                                  random_state=random_state)
         
     #negative to have it sort from highest to lowest
@@ -193,7 +195,7 @@ def random_forest_feature_selection(adata: ad.AnnData,
         counter = 0
         max_acc_arg = 0
         acc_list = [0]
-        for num_feats in tqdm(range(1, sorted_features.shape[1]+1),total= sorted_features.shape[1], desc = f'Training RF model iteratively using most important RF features until {stable_counter} stable iterations'):
+        for num_feats in tqdm(range(1, sorted_features.shape[1]+1),total= sorted_features.shape[1], desc = f'Training RF model iteratively using most important RF features until {stable_counter} stable iterations', disable= not verbose):
 
             if counter > stable_counter:
                 break
@@ -258,15 +260,17 @@ def random_forest_feature_selection(adata: ad.AnnData,
                                     labels = labels,
                                     rf_params = rf_params,
                                     train_test_split_params=train_test_split_params,
+                                    verbose=verbose,
                                     random_state=random_state,)
 
-    print()
-    print('##################################################################################')
-    print()
+    if verbose:
+        print()
+        print('##################################################################################')
+        print()
 
-    print('Optimal Feature Set sorted by RF feature importance')
-    print('###################################################')
-    print(optim_RF_feature_set)
+        print('Optimal Feature Set sorted by RF feature importance')
+        print('###################################################')
+        print(optim_RF_feature_set)
 
     #converts the optimal feature set to a boolean array
     feat_idxs, _ = utils.get_str_idx(optim_RF_feature_set, adata.var_names.values)
@@ -320,7 +324,8 @@ class GMM_CC_phase_prediction():
     def __init__(self,
                  adata,
                  GMM_obs_label: str = 'GMM_phase_labels',
-                 GMM_kwargs: dict = None,):
+                 GMM_kwargs: dict = None,
+                 random_state: int = 0,):
 
         self.adata = adata
 
@@ -333,6 +338,8 @@ class GMM_CC_phase_prediction():
             self.GMM_kwargs = {}
         else:
             self.GMM_kwargs = GMM_kwargs
+
+        self.random_state = random_state
 
         self.cc_phase_info_dict = {}
 
@@ -394,10 +401,10 @@ class GMM_CC_phase_prediction():
     def fit_GMM(self,
                     gene: str,
                     ordered_GMM_labels: list,
-                    random_state: int = 0,
                     n_components: int = None,
                     GMM_set_name: str = None,
                     GMM_kwargs: dict = None,
+                    duplicate_labels: bool = False,
                     row_data_partitioning: bool = False,):
             """
             Fits a Gaussian Mixture Model (GMM) to the gene expression data for a specific gene.
@@ -420,7 +427,7 @@ class GMM_CC_phase_prediction():
             if GMM_kwargs is None:
                 GMM_kwargs = self.GMM_kwargs
 
-            GM = GaussianMixture(n_components=n_components, random_state=random_state, **GMM_kwargs)
+            GM = GaussianMixture(n_components=n_components, random_state=self.random_state, **GMM_kwargs)
 
             means = GM.fit(x).means_.squeeze()
             covs = GM.fit(x).covariances_.squeeze()
@@ -435,9 +442,34 @@ class GMM_CC_phase_prediction():
                         'data_probs': data_probs[:,mean_argsort_idx],
                         'n_components': n_components}
 
-            gene_adata.uns[f'{gene}_GMM_dict'] = GMM_dict
+            data_probs = GMM_dict['data_probs'].copy()
 
-            data_probs = gene_adata.uns[f'{gene}_GMM_dict']['data_probs'].copy()
+            if len(ordered_GMM_labels) != len(set(ordered_GMM_labels)):
+                if not duplicate_labels:
+                    raise ValueError('The ordered GMM labels contain duplicate values. Please ensure that the labels are unique or set duplicate_labels to True.')
+
+                dup_labels_list = set([label for label in ordered_GMM_labels if ordered_GMM_labels.count(label) > 1])
+
+                if len(dup_labels_list) > 1:
+                    raise ValueError('More than one unique duplicate labels were found. Support for multiple duplicate labels is not yet implemented. Please ensure that the ordered GMM labels contain only one duplicate label.')
+
+                temp_data_probs = data_probs.copy()
+                label_idxs_to_keep = np.repeat(True, len(ordered_GMM_labels))
+                for dup_label in dup_labels_list:
+                    dup_idxs = [idx for idx, label in enumerate(ordered_GMM_labels) if label == dup_label]
+                    dup_data_probs = temp_data_probs.copy()[:, dup_idxs]
+
+                    max_dup_data_probs = np.max(dup_data_probs, axis=1)
+
+                    temp_data_probs[:,dup_idxs[0]] = max_dup_data_probs
+                    temp_data_probs = np.delete(temp_data_probs, dup_idxs[1:], axis=1)
+
+                    label_idxs_to_keep[dup_idxs[1:]] = False
+
+                condensed_labels =  [label for idx, label in enumerate(ordered_GMM_labels) if label_idxs_to_keep[idx]]
+
+                data_probs = temp_data_probs
+
             argmax_data_probs = np.argmax(data_probs, axis=1)
             phase_labels = [ordered_GMM_labels[i] for i in argmax_data_probs]
 
@@ -446,11 +478,18 @@ class GMM_CC_phase_prediction():
             if GMM_set_name is None:
                 GMM_set_name = str(len(self.cc_phase_info_dict.keys()))
 
+            gene_adata.uns[f'{gene}_GMM_dict'] = GMM_dict
+
             self.cc_phase_info_dict[GMM_set_name] = {'gene':gene,
                                                      'gene_adata':gene_adata,
                                                      'n_components':n_components,
                                                      'ordered_GMM_labels':ordered_GMM_labels,
-                                                     'row_data_partitioning':row_data_partitioning,}
+                                                     'row_data_partitioning':row_data_partitioning,
+                                                     'duplicate_labels':duplicate_labels}
+
+            if duplicate_labels:
+                self.cc_phase_info_dict[GMM_set_name]['condensed_labels'] =  condensed_labels
+                self.cc_phase_info_dict[GMM_set_name]['condensed_data_probs'] = temp_data_probs
 
     #labels for the GMM set names lave two labels, one with ~ and one without (ie. G0/~G0)
     def compare_GMM_labels(self, 
@@ -469,10 +508,18 @@ class GMM_CC_phase_prediction():
             c1_label = GMM_set_name_list[0]
             c2_label = GMM_set_name_list[1]
 
+            adata_size_list = []
+            for key in GMM_set_name_list:
+                c_phase_dict = self.cc_phase_info_dict[key]
+                adata_size_list.append(c_phase_dict[f'gene_adata'].shape[0])
+            
+            if adata_size_list[0] != adata_size_list[1]:
+                raise ValueError('The two GMM sets have different number of cells. Please ensure that the GMM sets have the same number of cells.') 
+
             genes = [self.cc_phase_info_dict[key]['gene'] for key in GMM_set_name_list]
 
             compare_dict = self.define_GMM_compare_parameters(GMM_set_name_list)
-        
+
             labels = [compare_dict[key]['c_positive_label'] for key in GMM_set_name_list]
 
             c1_pidxs = compare_dict[c1_label]['c_pidxs']
@@ -480,8 +527,11 @@ class GMM_CC_phase_prediction():
 
             c1c2_idxs = np.intersect1d(c1_pidxs, c2_pidxs)
 
-            c1_selected_data_probs = compare_dict[c1_label]['c_data_probs'][c1c2_idxs]
+            if len(c1c2_idxs) == 0:
+                raise ValueError('The two GMM sets have no common cells.')
+
             c2_selected_data_probs = compare_dict[c2_label]['c_data_probs'][c1c2_idxs]
+            c1_selected_data_probs = compare_dict[c1_label]['c_data_probs'][c1c2_idxs]
 
             c1c2_data_probs = np.concatenate([c1_selected_data_probs[np.newaxis,:],
                                                 c2_selected_data_probs[np.newaxis,:]],axis=0)
@@ -530,7 +580,12 @@ class GMM_CC_phase_prediction():
             c_phase_dict = self.cc_phase_info_dict[key]
             c_gene = c_phase_dict['gene']
             c_adata = c_phase_dict[f'gene_adata']
-            c_data_probs = c_adata.uns[f'{c_gene}_GMM_dict']['data_probs']
+
+            if c_phase_dict['duplicate_labels']:
+                c_data_probs = c_phase_dict['condensed_data_probs']
+            else:
+                c_data_probs = c_adata.uns[f'{c_gene}_GMM_dict']['data_probs']
+
             c_phase_labels = c_adata.obs[self.GMM_obs_label]
             c_positive_label = np.unique(c_phase_labels)[1].replace('~', '')
             c_pidxs, _ = utils.get_str_idx(c_positive_label, c_phase_labels)
@@ -550,6 +605,7 @@ class GMM_CC_phase_prediction():
                     cmap: plt.cm = plt.cm.rainbow,
                     unit_size: int = 5,
                     ratio: tuple = (1,1),
+                    x_lim_upper_percentile: int = 100,
                     resolution: int = 1000,):
             """
             Plots the Gaussian Mixture Model (GMM) for a given GMM set.
@@ -566,8 +622,14 @@ class GMM_CC_phase_prediction():
             Returns:
             None
             """
-            gene_adata = self.cc_phase_info_dict[GMM_set_name]['gene_adata']
-            labels = self.cc_phase_info_dict[GMM_set_name]['ordered_GMM_labels']
+            cc_phase_dict = self.cc_phase_info_dict[GMM_set_name]
+
+            gene_adata = cc_phase_dict['gene_adata']
+
+            if cc_phase_dict['duplicate_labels'] == True:
+                labels = cc_phase_dict['condensed_labels']
+            else:
+                labels = cc_phase_dict['ordered_GMM_labels']
 
             gene = gene_adata.var_names[0]
             gene_x = gene_adata.X.copy()
@@ -582,6 +644,21 @@ class GMM_CC_phase_prediction():
 
             row_ratio, col_ratio = ratio
             fig = plt.subplots(1,1,figsize=(col_ratio*unit_size,  row_ratio*unit_size))
+
+            if hist_kwargs is None:
+                hist_kwargs = {"bins":100, 'color':'black', "density": True,}
+
+            threshold = np.percentile(gene_x, x_lim_upper_percentile, axis=0)
+            trunc_gene_x = gene_x[gene_x < threshold]
+            plt.hist(trunc_gene_x, **hist_kwargs, zorder=1)
+
+            hist_y_lims = plt.ylim()
+            lower_hist_x_lim , upper_hist_x_lim = plt.xlim()
+             
+            if lower_hist_x_lim < 0:
+                hist_x_lims = (0, upper_hist_x_lim)
+            else:
+                hist_x_lims = plt.xlim()
 
             for guas_idx in range(n_components):
                 g_mean = means[guas_idx]
@@ -600,19 +677,6 @@ class GMM_CC_phase_prediction():
                 plt.plot(x_axis, y_axis, lw=3, color=colors[guas_idx], zorder=4)
                 plt.axvline(g_mean, color=colors[guas_idx], lw=2, ls='--',zorder=3)
 
-            if hist_kwargs is None:
-                hist_kwargs = {"bins":100, 'color':'black', "density": True,}
-
-            plt.hist(gene_x, **hist_kwargs, zorder=1)
-
-            hist_y_lims = plt.ylim()
-            lower_hist_x_lim , upper_hist_x_lim = plt.xlim()
-             
-            if lower_hist_x_lim < 0:
-                hist_x_lims = (0, upper_hist_x_lim)
-            else:
-                hist_x_lims = plt.xlim()
-
             self.plot_linear_decision_boundaries(gene_adata,
                                                 gene_x,
                                                 labels,
@@ -629,13 +693,16 @@ class GMM_CC_phase_prediction():
             plt.legend(handles = patch_list)
 
             plt.xlim(hist_x_lims)
+            plt.ylim(hist_y_lims)
             plt.title(f'{gene}')
         
         
-    def merge_GMM_adata_labels(self, GMM_set_name_list):
+    def merge_GMM_adata_labels(self, GMM_set_name_list, new_labels: bool = True):
 
-        #self.adata.obs[self.GMM_obs_label] = np.repeat('NA', self.adata.shape[0])
-        GMM_labels = np.repeat('NA', self.adata.shape[0])   
+        if new_labels:
+            GMM_labels = np.repeat('NA', self.adata.shape[0]).astype(object)
+        else:
+            GMM_labels = self.adata.obs[self.GMM_obs_label].copy()
 
         for GMM_set_name in GMM_set_name_list:
             GMM_adata = self.cc_phase_info_dict[GMM_set_name]['gene_adata']
@@ -676,6 +743,7 @@ class GMM_CC_phase_prediction():
         #encoding the labels from strings to integers
         encoder = LabelEncoder()
         encoder.fit(gene_adata.obs[self.GMM_obs_label].values)
+
         #Reassigning the classes to the encoder
         encoder.classes_ = np.array(labels)
         encoded_labels = encoder.transform(np.array(gene_adata.obs[self.GMM_obs_label]))
@@ -732,7 +800,7 @@ class GMM_CC_phase_prediction():
             bics = []
             counter=1
             for _ in range (bic_range): # test the AIC/BIC metric between 1 and 10 components
-                gmm = GaussianMixture(n_components = counter, **self.GMM_kwargs)
+                gmm = GaussianMixture(n_components = counter, **self.GMM_kwargs, random_state=self.random_state)
                 labels = gmm.fit(cc_x).predict(cc_x)
                 bic = gmm.bic(cc_x)
                 bics.append(bic)

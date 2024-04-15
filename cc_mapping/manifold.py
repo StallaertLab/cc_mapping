@@ -63,6 +63,7 @@ def plot_phate_coords(adata: ad.AnnData = None,
                       kwargs: dict = {},
                       axe: mpl.axes = None,
                       hyperparam: bool = False,
+                      unit_size: int = 5,
                       obsm_embedding: str = 'X_phate',
                       return_fig: bool = False):
     """
@@ -82,7 +83,7 @@ def plot_phate_coords(adata: ad.AnnData = None,
     mpl.figure.Figure, mpl.axes.Axes or mpl.axes.Axes: If `return_fig` is True, returns the figure and axes objects. Otherwise, returns the axes object.
     """
     if not axe:
-        fig, axe = plt.subplots(1,1, figsize=(10,10))
+        fig, axe = plt.subplots(1,1, figsize=(unit_size,unit_size))
 
     if not hyperparam:
         phate_coords = adata.obsm[obsm_embedding]
@@ -238,7 +239,7 @@ def perform_phate_hyperparameter_search(adata: ad.AnnData,
 
     if (color_vector.dtype == 'object' or isinstance(color_vector, pd.Categorical)) and legend:
         patches,colors = get_legend(adata, color_name)
-        plt.legend(handles=patches, fontsize = 2*unit_size)
+        plt.legend(handles=patches, fontsize = unit_size)
 
     if save_path is not None:
         plt.savefig(save_path, dpi=300, bbox_inches='tight')

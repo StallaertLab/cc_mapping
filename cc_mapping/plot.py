@@ -286,7 +286,8 @@ def general_plotting_function(plotting_function,
     return fig
 
 def get_legend(adata: ad.AnnData,
-               color_name: str):
+               color_name: str,
+               label_name: str = None):
     """ get patches from adata.obs[color_name] to be used for creating a legend and returns the list of colors as well
 
     Args:
@@ -301,7 +302,9 @@ def get_legend(adata: ad.AnnData,
     """
     colors = adata.obs_vector(color_name)
 
-    label_name = color_name.removesuffix('_colors')
+    if label_name is None:
+        label_name = color_name.removesuffix('_colors')
+
     labels = adata.obs[label_name].values
 
     col_lab_array = np.array([colors, labels],dtype=str).T
@@ -318,6 +321,7 @@ def combine_Lof_plots(Lof_plots: List[mpl.figure.Figure] = None,
                       fig_dims: tuple = None,
                       default_padding: tuple = (0,0),
                       default_padding_color: tuple = 255,
+                      unit_size: int = 5,
                       save_path: str = None,
                       title_kwargs: dict = None,
                       title: str = None,
@@ -387,7 +391,7 @@ def combine_Lof_plots(Lof_plots: List[mpl.figure.Figure] = None,
     #shapes the figures generated above into the final figure dimensions
     counter = 0
     fig_rows =[]
-    for plot in range(final_num_rows):
+    for _ in range(final_num_rows):
         fig_row = Lof_plots[counter:counter+final_num_cols]
         fig_row = np.hstack(fig_row)
         fig_rows.append(fig_row)
@@ -397,13 +401,15 @@ def combine_Lof_plots(Lof_plots: List[mpl.figure.Figure] = None,
 
     plot_array = np.vstack(fig_rows)
 
-    f_unit_size = 15
     #plots the final figure
-    fig,ax = plt.subplots(figsize=(f_unit_size*final_num_cols, f_unit_size*final_num_rows), constrained_layout=True, dpi =600)
+    fig,ax = plt.subplots(figsize=(unit_size*final_num_cols, unit_size*final_num_rows), constrained_layout=True, dpi =600)
 
     ax.matshow(plot_array)
 
     if title:
+        if title_kwargs is None:
+            title_kwargs = {'fontsize': unit_size*final_num_cols, 'fontweight': 'bold'}
+
         ax.set_title(title, **title_kwargs)
 
     ax.axis('off')
