@@ -48,6 +48,7 @@ def run_palantir_pseudotime(adata: ad.AnnData,
     try:
         with open(os.devnull, 'w') as devnull:
                 with contextlib.redirect_stdout(devnull):
+                    
                     palantir.utils.run_diffusion_maps(adata, n_components=n_components, pca_key=data_key ,seed=seed)
                     palantir.utils.determine_multiscale_space(adata)
 
@@ -57,7 +58,7 @@ def run_palantir_pseudotime(adata: ad.AnnData,
         print(e)
 
         if plot:
-            fig = plt.figure(figsize=(1,1))
+            fig = plt.figure(figsize=(10,10))
             plt.tight_layout()
             return fig
             
@@ -123,28 +124,31 @@ def palantir_pseudotime_hyperparam_plotting_function(axe, idx_dict, plotting_dic
     #this is a numpy array of the plot
     element = np.array(canvas.buffer_rgba())
     axe.imshow(element)
-    def get_plot_limits(element, type):
-        if type == 'right':
-            element = np.flip(element, axis=1)
+    
+    if not np.all(element == 255):
+        def get_plot_limits(element, type):
+            if type == 'right':
+                element = np.flip(element, axis=1)
 
-        truth_bool_array = np.repeat(True, element.shape[1])
+            truth_bool_array = np.repeat(True, element.shape[1])
 
-        white_cols = np.where(np.all(np.isclose(element, 255), axis=0))[0]
-        cols = list(Counter(white_cols).keys())
-        counts = list(Counter(white_cols).values())
-        white_cols = np.where(np.array(counts) == 4)[0]
-        white_col_idxs = [cols[idx] for idx in white_cols]
-        truth_bool_array[white_col_idxs] = False
+            white_cols = np.where(np.all(np.isclose(element, 255), axis=0))[0]
+            cols = list(Counter(white_cols).keys())
+            counts = list(Counter(white_cols).values())
+            white_cols = np.where(np.array(counts) == 4)[0]
+            white_col_idxs = [cols[idx] for idx in white_cols]
+            truth_bool_array[white_col_idxs] = False
 
-        return truth_bool_array
+            return truth_bool_array
 
-    left_truth_bool_array = get_plot_limits(element, 'left')
-    right_truth_bool_array = get_plot_limits(element, 'right')
+        left_truth_bool_array = get_plot_limits(element, 'left')
+        right_truth_bool_array = get_plot_limits(element, 'right')
 
-    fig = plt.figure(figsize=(10,10))
-    xll = np.argwhere(left_truth_bool_array==True)[0]
-    xul = element.shape[1]-np.argwhere(right_truth_bool_array==True)[0]
-    axe.set_xlim(xll,xul)
+        fig = plt.figure(figsize=(10,10))
+        xll = np.argwhere(left_truth_bool_array==True)[0]
+        xul = element.shape[1]-np.argwhere(right_truth_bool_array==True)[0]
+        axe.set_xlim(xll,xul)
+
     axe.axis('off')
     return axe,element
 

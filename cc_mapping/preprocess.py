@@ -15,6 +15,7 @@ from cc_mapping.utils import get_str_idx
 def row_data_partitioning(adata: ad.AnnData,
                             search_str: str,
                             search_obs: str,
+                            regex: bool = False,
                             reset_idx: bool  = True):
     """
     Partition the rows of the input AnnData object based on a search string and observation column.
@@ -28,7 +29,7 @@ def row_data_partitioning(adata: ad.AnnData,
     Returns:
     ad.AnnData: The partitioned AnnData object.
     """
-    search_idxs, _ = get_str_idx(search_str, adata.obs[search_obs])
+    search_idxs, _ = get_str_idx(search_str, adata.obs[search_obs], regex=regex)
 
     adata = adata[search_idxs,:].copy()
 
