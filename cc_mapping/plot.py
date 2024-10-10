@@ -2,6 +2,7 @@ import matplotlib as mpl
 import pandas as pd
 import matplotlib.patches as mpatches
 import os 
+import matplotlib._pylab_helpers
 import anndata as ad
 import scipy.stats as st
 import matplotlib.pyplot as plt
@@ -9,21 +10,18 @@ import numpy as np
 from typing import Union,List
 import itertools
 import anndata as ad
+from math import floor, ceil
 
-import sys
-sys.path.append(os.getcwd())
-
-from GLOBAL_VARIABLES.GLOBAL_VARIABLES import cc_mapping_package_dir
-sys.path.append(cc_mapping_package_dir)
-
-from cc_mapping.utils import get_str_idx
+from .utils import get_str_idx
 
 def plot_row_partitions(adata: ad.AnnData,
                         obs_search_term: str,
                         colors: Union[list, np.ndarray] = None,
                         column_labels: Union[list, np.ndarray] = None,
+                        obs_embedding_key: str = 'X_phate',
                         kwargs: dict = {},
                         plot_all: bool = True,
+                        plot_background: bool = True,
                         unit_size: int  = 20,
                         save_path: str = None):
     """
@@ -53,6 +51,8 @@ def plot_row_partitions(adata: ad.AnnData,
     plotting_dict = {'adata': adata,
                     'Lof_colors': colors,
                     'obs_search_term': obs_search_term,
+                    'obs_embedding_key': obs_embedding_key,
+                    'plot_background': plot_background,
                      'kwargs': {}
                      }
     if kwargs != {}:
@@ -84,7 +84,8 @@ def row_partition_plotting_function(ax, idx_dict, plotting_dict):
     kwargs = plotting_dict['kwargs'].copy()
 
     adata = plotting_dict['adata'].copy()
-    phate_df = adata.obsm['X_phate']
+    obs_embedding_key = plotting_dict['obs_embedding_key']
+    phate_df = adata.obsm[obs_embedding_key]
 
     obs_search_term = plotting_dict['obs_search_term']
 
@@ -93,7 +94,8 @@ def row_partition_plotting_function(ax, idx_dict, plotting_dict):
 
     color_name = Lof_colors[row_idx-1]
 
-    ax.scatter(phate_df[:,0], phate_df[:,1],c='lightgrey', **kwargs)
+    if plotting_dict['plot_background']:
+        ax.scatter(phate_df[:,0], phate_df[:,1],c='lightgrey', **kwargs)
 
     colors = adata.obs_vector(color_name)
 
@@ -284,7 +286,8 @@ def general_plotting_function(plotting_function,
     return fig
 
 def get_legend(adata: ad.AnnData,
-               color_name: str):
+               color_name: str,
+               label_name: str = None):
     """ get patches from adata.obs[color_name] to be used for creating a legend and returns the list of colors as well
 
     Args:
@@ -299,7 +302,9 @@ def get_legend(adata: ad.AnnData,
     """
     colors = adata.obs_vector(color_name)
 
-    label_name = color_name.removesuffix('_colors')
+    if label_name is None:
+        label_name = color_name.removesuffix('_colors')
+
     labels = adata.obs[label_name].values
 
     col_lab_array = np.array([colors, labels],dtype=str).T
@@ -312,13 +317,42 @@ def get_legend(adata: ad.AnnData,
 
     return patch_list, colors
 
-def combine_Lof_plots(Lof_plots: List[mpl.figure.Figure],
-                      fig_dims: tuple,
+def combine_Lof_plots(Lof_plots: List[mpl.figure.Figure] = None,
+                      fig_dims: tuple = None,
                       default_padding: tuple = (0,0),
-                      default_padding_color: tuple = 255):
+                      default_padding_color: tuple = 255,
+                      unit_size: int = 5,
+                      save_path: str = None,
+                      title_kwargs: dict = None,
+                      title: str = None,
+                      inline: bool = False):
+
+    """
+    Combines a list of matplotlib figures into a single figure with specified dimensions.
+
+    Parameters:
+    - Lof_plots (List[mpl.figure.Figure]): List of matplotlib figures to be combined. If `inline` is True, this parameter is ignored.
+    - fig_dims (tuple): Dimensions of the final combined figure in terms of number of rows and columns.
+    - default_padding (tuple): Padding to be applied to each figure in terms of number of rows and columns.
+    - default_padding_color (tuple): Color value (RGB) to be used for the default padding.
+    - save_path (str): Path to save the combined figure. If not provided, the figure will be displayed.
+    - title_kwargs (dict): Keyword arguments for customizing the title of the combined figure.
+    - title (str): Title of the combined figure.
+    - inline (bool): If True, the function will automatically retrieve all open figures and combine them. The `Lof_plots` parameter will be ignored.
+
+    Returns:
+     - None
+    """
+
+    if inline:
+        Lof_plots=[manager.canvas.figure
+                for manager in matplotlib._pylab_helpers.Gcf.get_all_fig_managers()]
 
     #converts the figures into numpy arrays
     for fig_idx, fig in enumerate(Lof_plots):
+        if isinstance(fig, tuple):
+            fig = fig[0]
+
         canvas = fig.canvas
         canvas.draw()
 
@@ -326,6 +360,9 @@ def combine_Lof_plots(Lof_plots: List[mpl.figure.Figure],
 
         Lof_plots[fig_idx] = element
 
+    if inline:
+        for fig in plt.get_fignums():
+            plt.close(fig)
 
     max_figure_dims = np.max([(fig.shape[0],fig.shape[1]) for fig in Lof_plots],axis=0)
 
@@ -349,10 +386,15 @@ def combine_Lof_plots(Lof_plots: List[mpl.figure.Figure],
     final_num_rows = fig_dims[0]
     final_num_cols = fig_dims[1]
 
+    if len(Lof_plots) < final_num_rows*final_num_cols:
+        fig_num_diff = final_num_rows*final_num_cols - len(Lof_plots)
+        for _ in range(fig_num_diff):
+            Lof_plots.append(np.ones_like(fig)*default_padding_color)
+
     #shapes the figures generated above into the final figure dimensions
     counter = 0
     fig_rows =[]
-    for plot in range(final_num_rows):
+    for _ in range(final_num_rows):
         fig_row = Lof_plots[counter:counter+final_num_cols]
         fig_row = np.hstack(fig_row)
         fig_rows.append(fig_row)
@@ -362,50 +404,22 @@ def combine_Lof_plots(Lof_plots: List[mpl.figure.Figure],
 
     plot_array = np.vstack(fig_rows)
 
-    f_unit_size = 15
     #plots the final figure
-    fig,ax = plt.subplots(figsize=(f_unit_size*final_num_cols, f_unit_size*final_num_rows), constrained_layout=True, dpi =600)
+    fig,ax = plt.subplots(figsize=(unit_size*final_num_cols, unit_size*final_num_rows), constrained_layout=True, dpi =600)
 
     ax.matshow(plot_array)
 
+    if title:
+        if title_kwargs is None:
+            title_kwargs = {'fontsize': unit_size*final_num_cols, 'fontweight': 'bold'}
+
+        ax.set_title(title, **title_kwargs)
+
     ax.axis('off')
-    return fig
-
-def plot_GMM(x: Union[np.ndarray, list],
-             GMM_dict: dict,
-             num_std: int =3,
-             plot_all: bool =True):
-
-    n_components = GMM_dict['n_components']
-    means = GMM_dict['means']
-    covs = GMM_dict['covs']
-    weights = GMM_dict['weights']
-    labels = GMM_dict['labels']
-    colors = GMM_dict['colors']
-
-    unit_size = 5
-    if not all:
-        fig, ax = plt.subplots(1,n_components,figsize=(unit_size*n_components,  unit_size), sharex=True)
+    if save_path:
+        plt.savefig(save_path, dpi=600, bbox_inches='tight')
+    elif inline:
+        plt.show()
+        plt.close()
     else:
-        fig, ax = plt.subplots(1,1,figsize=(unit_size,  unit_size))
-
-    for guas_idx in range(n_components):
-        g_mean = means[guas_idx]
-        g_cov = covs[guas_idx]
-        g_weight = weights[guas_idx]
-
-        std = np.sqrt(g_cov)
-
-        x_axis = np.arange(g_mean-num_std*std, g_mean+num_std*std, 0.01)
-
-        y_axis = st.norm.pdf(x_axis, loc=g_mean, scale=std)*g_weight
-
-        if not all:
-            axe = ax[guas_idx]
-        else:
-            axe = ax
-
-        axe.plot(x_axis, y_axis, label=labels[guas_idx], lw=3, color=colors[guas_idx])
-        axe.hist(x, bins=100, color='black', density=True)
-    
-    plt.legend()
+        return fig

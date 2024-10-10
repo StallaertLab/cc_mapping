@@ -14,21 +14,33 @@ import phate
 
 from typing import Union
 
-import sys
-sys.path.append(os.getcwd())
-
-from GLOBAL_VARIABLES.GLOBAL_VARIABLES import cc_mapping_package_dir
-sys.path.append(cc_mapping_package_dir)
-
-from cc_mapping.plot import general_plotting_function, get_legend, combine_Lof_plots
+from .plot import general_plotting_function, get_legend, combine_Lof_plots
+from .api import get_G0MO3_results, ReturnPhateResults
 
 def run_phate(adata: ad.AnnData,
               feature_set:str,
               layer: str,
-              phate_param_dict: dict = {},
+              phate_param_dict: dict = None,
               obsm_save_key: str = 'X_phate',
               hyperparam: bool = False):
-    
+    """
+    Run the PHATE algorithm on the specified data.
+
+    Parameters:
+    adata (ad.AnnData): Annotated data object.
+    feature_set (str): Name of the feature set to use.
+    layer (str): Name of the layer to use.
+    phate_param_dict (dict, optional): Dictionary of PHATE algorithm parameters. Defaults to an empty dictionary.
+    obsm_save_key (str, optional): Key to save the PHATE coordinates in `adata.obsm`. Defaults to 'X_phate'.
+    hyperparam (bool, optional): If True, only return the PHATE coordinates. Defaults to False.
+
+    Returns:
+    ad.AnnData or np.ndarray: Annotated data object with PHATE coordinates in `adata.obsm[obsm_save_key]` if `hyperparam` is False,
+                              otherwise returns the PHATE coordinates as a numpy array.
+    """
+    if phate_param_dict is None:
+        phate_param_dict = {}
+
     feature_set_bool = adata.var[feature_set].values
     data = adata.layers[layer][:,feature_set_bool].copy()
 
@@ -49,19 +61,42 @@ def plot_phate_coords(adata: ad.AnnData = None,
                       kwargs: dict = {},
                       axe: mpl.axes = None,
                       hyperparam: bool = False,
+                      unit_size: int = 5,
                       obsm_embedding: str = 'X_phate',
+                      blank: bool = False,
                       return_fig: bool = False):
+    """
+    Plot PHATE coordinates.
+
+    Parameters:
+    adata (ad.AnnData): Annotated data object.
+    colors (Union[np.ndarray,list]): Array-like object containing colors for each data point.
+    phate_coords (np.ndarray): Array-like object containing PHATE coordinates.
+    kwargs (dict): Additional keyword arguments for scatter plot.
+    axe (mpl.axes): Matplotlib axes object to plot on.
+    hyperparam (bool): Flag indicating whether to use hyperparameter values for color mapping.
+    obsm_embedding (str): Key for accessing the PHATE coordinates in `adata.obsm`.
+    return_fig (bool): Flag indicating whether to return the figure and axes objects.
+
+    Returns:
+    mpl.figure.Figure, mpl.axes.Axes or mpl.axes.Axes: If `return_fig` is True, returns the figure and axes objects. Otherwise, returns the axes object.
+    """
 
     if not axe:
-        fig, axe = plt.subplots(1,1, figsize=(10,10))
+        fig, axe = plt.subplots(1,1, figsize=(unit_size,unit_size))
+
+    if blank:
+        axe.axis('off')
+        axe.set_yticks([])
+        axe.set_xticks([])
+        return axe
 
     if not hyperparam:
         phate_coords = adata.obsm[obsm_embedding]
 
     colors = adata.obs_vector(colors)
 
-    #if not isinstance(colors, pd.Categorical):
-    if colors.dtype != 'object' and not isinstance(colors, pd.Categorical):
+    if colors.dtype != 'object' and not isinstance(colors, pd.core.arrays.categorical.Categorical):
         vmin = np.percentile(colors, 1)
         vmax = np.percentile(colors, 99)
         kwargs.update( { 'vmin' : vmin,
@@ -82,7 +117,18 @@ def plot_phate_coords(adata: ad.AnnData = None,
     return axe
 
 def phate_hyperparameter_search_plotting_function(axe, idx_dict, plotting_dict):
+    """
+    Plot PHATE coordinates for hyperparameter search.
 
+    Args:
+        axe (matplotlib.axes.Axes): The axes object to plot on.
+        idx_dict (dict): Dictionary containing the row and column indices.
+        plotting_dict (dict): Dictionary containing the plotting parameters.
+
+    Returns:
+        matplotlib.axes.Axes: The updated axes object.
+
+    """
     col_idx = idx_dict['col_idx']-1
     row_idx = idx_dict['row_idx']-1
 
@@ -114,21 +160,43 @@ def phate_hyperparameter_search_plotting_function(axe, idx_dict, plotting_dict):
 
 def perform_phate_hyperparameter_search(adata: ad.AnnData,
                                   feature_set: str,
-                                  layer: str,
                                   hyperparam_dict: dict,
                                   hyperparam_info_dict: dict,
+                                  additional_plotting_dict_params: dict,
+                                  layer: str = None,
+                                  plotting_function: callable = None,
                                   color_name: list = None,
                                   save_path: str = None,
                                   legend: bool = False,
                                   unit_size: int = 10,
                                   kwargs: dict = {}):
 
+    """
+    Perform hyperparameter search for PHATE visualization.
+
+    Parameters:
+    adata (ad.AnnData): Annotated data object.
+    feature_set (str): Name of the feature set.
+    layer (str): Name of the layer.
+    hyperparam_dict (dict): Dictionary of hyperparameters.
+    hyperparam_info_dict (dict): Dictionary of hyperparameter information.
+    color_name (list, optional): List of color names. Defaults to None.
+    save_path (str, optional): Path to save the figure. Defaults to None.
+    legend (bool, optional): Whether to include a legend. Defaults to False.
+    unit_size (int, optional): Size of the units. Defaults to 10.
+    kwargs (dict, optional): Additional keyword arguments. Defaults to {}.
+
+    Returns:
+    matplotlib.figure.Figure: Combined figure of hyperparameter search plots.
+    """
+
     if save_path is not None:
         save_dir = os.path.dirname(save_path)
         if not os.path.exists(save_dir):
             raise ValueError(f'{save_dir} does not exist')
 
-    plotting_function = phate_hyperparameter_search_plotting_function
+    if not plotting_function:
+        plotting_function = phate_hyperparameter_search_plotting_function
                                   
     constant_param_name = hyperparam_info_dict['constant_label']
 
@@ -145,7 +213,6 @@ def perform_phate_hyperparameter_search(adata: ad.AnnData,
     if total_num_plots < number_param_plots:
         raise ValueError(f'Number of plots ({number_param_plots}) exceeds the number of subplots ({total_num_plots})')
         
-    element_list = []   
     figure_list = []
     for idx in tqdm(range(total_num_plots), total=number_param_plots, desc = 'Generating hyperparameter search plots'):
 
@@ -156,6 +223,9 @@ def perform_phate_hyperparameter_search(adata: ad.AnnData,
                             'unit_size':unit_size,
                             'kwargs':kwargs,
                             }
+
+        if additional_plotting_dict_params:
+            plotting_dict.update(additional_plotting_dict_params)
 
         # -1 is needed for correct indexing 
         if idx <= number_param_plots-1:
@@ -177,14 +247,15 @@ def perform_phate_hyperparameter_search(adata: ad.AnnData,
 
     combined_fig = combine_Lof_plots(figure_list, final_figure_dims)
 
-    color_vector = adata.obs_vector(color_name)
+    if color_name is not None:
+        color_vector = adata.obs_vector(color_name)
 
-    if (color_vector.dtype == 'object' or isinstance(color_vector, pd.Categorical)) and legend:
-        patches,colors = get_legend(adata, color_name)
-        combined_fig.legend(handles=patches, fontsize = 2*unit_size)
+        if (color_vector.dtype == 'object' or isinstance(color_vector, pd.Categorical)) and legend:
+            patches,colors = get_legend(adata, color_name)
+            plt.legend(handles=patches, fontsize = unit_size)
 
     if save_path is not None:
-        combined_fig.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
 
     mpl.use(backend)
 

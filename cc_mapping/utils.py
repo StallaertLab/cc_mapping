@@ -6,7 +6,8 @@ from typing import Union, List
 
 def get_str_idx(strings_to_find: Union[ str, List[str], np.ndarray[str] ],
                 string_list: Union[ List[str], np.ndarray[str] ],
-                regex: bool =False) -> (np.ndarray, np.ndarray):
+                regex: bool =False,
+                regex_flags: List[str] = None ) -> List[np.ndarray]:
 
     """ Takes in a string or list of strings and returns the indices and 
         the names of the matching strings in the string list
@@ -28,7 +29,11 @@ def get_str_idx(strings_to_find: Union[ str, List[str], np.ndarray[str] ],
     """
     
     if regex:
-        search_func = lambda regex, string_to_search: re.search(regex, string_to_search)
+        reFlags = []
+        for flag in regex_flags:
+            reFlags.append(getattr(re, flag))
+
+        search_func = lambda regex, string_to_search: re.search(regex, string_to_search, *reFlags)
     else: 
         search_func = lambda matching_string, string_to_search: matching_string == string_to_search
 
@@ -59,7 +64,17 @@ def get_str_idx(strings_to_find: Union[ str, List[str], np.ndarray[str] ],
     return feat_idx_names[:,0].astype(int), feat_idx_names[:,1]
 
 def equalize_conditions(adata, obs_str, ignore_min_list = None):
+    """
+    Equalizes the conditions in the given AnnData object based on the specified observation string.
 
+    Parameters:
+        adata (AnnData): The AnnData object containing the data.
+        obs_str (str): The observation string specifying the condition to equalize.
+        ignore_min_list (list, optional): A list of observation values to ignore when equalizing. Defaults to None.
+
+    Returns:
+        AnnData: The modified AnnData object with equalized conditions.
+    """
     obs_values = adata.obs[obs_str].copy()
 
     obs_counts = Counter(obs_values)
@@ -73,7 +88,7 @@ def equalize_conditions(adata, obs_str, ignore_min_list = None):
     idx_list = []
     for obs_val in obs_counts.keys():
 
-        obs_idxs, _ = utils.get_str_idx(obs_val, obs_values)
+        obs_idxs, _ = get_str_idx(obs_val, obs_values)
 
         np.random.seed(0)   
         selected_obs_idxs = list(np.random.choice(obs_idxs, size = min_obs_count, replace = False))
@@ -85,7 +100,19 @@ def equalize_conditions(adata, obs_str, ignore_min_list = None):
     return adata
 
 def equalize_within_two_conditions(adata, first_obs_str, second_obs_str, ignore_min_list = None):
+    """
+    Equalizes the number of observations within two conditions in a single-cell dataset.
 
+    Parameters:
+        adata (AnnData): Annotated data matrix.
+        first_obs_str (str): Name of the first condition.
+        second_obs_str (str): Name of the second condition.
+        ignore_min_list (list, optional): List of observation values to ignore when calculating the minimum count. Defaults to None.
+
+    Returns:
+        AnnData: Annotated data matrix with equalized observations.
+
+    """
     f_obs_values = adata.obs[first_obs_str].copy()
     f_obs_counts = Counter(f_obs_values)
     unique_f_obs_values = sorted(f_obs_counts.keys())
@@ -107,7 +134,7 @@ def equalize_within_two_conditions(adata, first_obs_str, second_obs_str, ignore_
     idx_list = []
     for f_obs in unique_f_obs_values:
 
-        f_obs_idxs, _ = utils.get_str_idx(f_obs, fs_obs_array[:,0])
+        f_obs_idxs, _ = get_str_idx(f_obs, fs_obs_array[:,0])
         single_f_obs_array = fs_obs_array[f_obs_idxs,:]
 
         s_obs_counts = Counter(single_f_obs_array[:,1])
@@ -122,7 +149,7 @@ def equalize_within_two_conditions(adata, first_obs_str, second_obs_str, ignore_
 
         for idx, (s_obs_key, s_obs_count) in enumerate(zip(sorted_s_obs_counts_keys, sorted_s_obs_counts_values)):
 
-            s_obs_idxs, _ = utils.get_str_idx(s_obs_key, single_f_obs_array[:,1])
+            s_obs_idxs, _ = get_str_idx(s_obs_key, single_f_obs_array[:,1])
 
             if s_obs_count > f_obs_per_s_obs:
 

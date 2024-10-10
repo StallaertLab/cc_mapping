@@ -1,4 +1,5 @@
 import palantir
+import pandas as pd
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from tqdm import tqdm
@@ -8,14 +9,7 @@ import numpy as np
 import anndata as ad
 from collections import Counter
 
-import sys
-sys.path.append(os.getcwd())
-
-from GLOBAL_VARIABLES.GLOBAL_VARIABLES import cc_mapping_package_dir
-sys.path.append(cc_mapping_package_dir)
-
-from cc_mapping.plot import general_plotting_function
-
+from .plot import general_plotting_function, combine_Lof_plots
 
 
 def run_palantir_pseudotime(adata: ad.AnnData,
@@ -24,28 +18,67 @@ def run_palantir_pseudotime(adata: ad.AnnData,
                             n_components: int,
                             num_waypoints:int,
                             knn: int,
+                            obsm_embedding: str = 'X_phate',
                             seed:int = 0,
                             plot:bool = True,
                             kwargs: dict = {}):
+    """
+    Runs the Palantir pseudotime analysis on the provided AnnData object.
 
+    Parameters:
+        adata (ad.AnnData): The AnnData object containing the data.
+        root_cell (str): The name of the root cell for pseudotime analysis.
+        data_key (str): The key in `adata.obsm` where the data is stored.
+        n_components (int): The number of diffusion components to compute.
+        num_waypoints (int): The number of waypoints to compute.
+        knn (int): The number of nearest neighbors to use for constructing the kNN graph.
+        obsm_embedding (str, optional): The key in `adata.obsm` where the embedding is stored. Defaults to 'X_phate'.
+        seed (int, optional): The random seed for reproducibility. Defaults to 0.
+        plot (bool, optional): Whether to plot the results. Defaults to True.
+        kwargs (dict, optional): Additional keyword arguments to pass to `palantir.plot.plot_palantir_results`.
 
+    Returns:
+        matplotlib.figure.Figure or None: The generated plot figure, or None if an error occurred.
+    """
     try:
         with open(os.devnull, 'w') as devnull:
                 with contextlib.redirect_stdout(devnull):
+                    
                     palantir.utils.run_diffusion_maps(adata, n_components=n_components, pca_key=data_key ,seed=seed)
                     palantir.utils.determine_multiscale_space(adata)
 
                     palantir.core.run_palantir(adata, root_cell, num_waypoints=num_waypoints, knn=knn,seed=seed)
     except Exception as e:
+        print(f'n_components: {n_components}, num_waypoints: {num_waypoints}, knn: {knn}')
         print(e)
-        exit()
+
+        if plot:
+            fig = plt.figure(figsize=(10,10))
+            plt.tight_layout()
+            return fig
+            
 
     if plot:
-        fig = palantir.plot.plot_palantir_results(adata, embedding_basis = 'X_phate',**kwargs)
+        fig = palantir.plot.plot_palantir_results(adata, embedding_basis = obsm_embedding, **kwargs)
         plt.tight_layout()
         return fig
 
 def palantir_pseudotime_hyperparam_plotting_function(axe, idx_dict, plotting_dict,unit_size=10,s=10):
+
+    """
+    Plotting function for palantir pseudotime hyperparameters.
+
+    Args:
+        axe (matplotlib.axes.Axes): The axes on which to plot the pseudotime hyperparameters.
+        idx_dict (dict): A dictionary containing the row and column indices.
+        plotting_dict (dict): A dictionary containing the plotting information.
+        unit_size (int, optional): The size of the units in the plot. Defaults to 10.
+        s (int, optional): The size of the markers in the plot. Defaults to 10.
+
+    Returns:
+        matplotlib.axes.Axes: The modified axes object.
+        numpy.ndarray: The plot as a numpy array.
+    """
 
     col_idx = idx_dict['col_idx']-1
     row_idx = idx_dict['row_idx']-1
@@ -56,6 +89,8 @@ def palantir_pseudotime_hyperparam_plotting_function(axe, idx_dict, plotting_dic
 
     hyperparam_info_dict = plotting_dict['hyperparam_info_dict'].copy()
     kwargs = plotting_dict['kwargs'].copy()
+
+    obsm_embedding = plotting_dict['obsm_embedding']
 
     row_param_name = hyperparam_info_dict['row_label']
     col_param_name = hyperparam_info_dict['col_label']
@@ -76,7 +111,7 @@ def palantir_pseudotime_hyperparam_plotting_function(axe, idx_dict, plotting_dic
     root_cell = plotting_dict['root_cell']
     data_key = plotting_dict['data_key']
 
-    fig = run_palantir_pseudotime(adata, root_cell, data_key, n_components, num_waypoints, knn, seed=random_seed, kwargs=kwargs)
+    fig = run_palantir_pseudotime(adata, root_cell, data_key, n_components, num_waypoints, knn, obsm_embedding= obsm_embedding, seed=random_seed, kwargs=kwargs)
     
     canvas = fig.canvas
     canvas.draw()
@@ -84,28 +119,31 @@ def palantir_pseudotime_hyperparam_plotting_function(axe, idx_dict, plotting_dic
     #this is a numpy array of the plot
     element = np.array(canvas.buffer_rgba())
     axe.imshow(element)
-    def get_plot_limits(element, type):
-        if type == 'right':
-            element = np.flip(element, axis=1)
+    
+    if not np.all(element == 255):
+        def get_plot_limits(element, type):
+            if type == 'right':
+                element = np.flip(element, axis=1)
 
-        truth_bool_array = np.repeat(True, element.shape[1])
+            truth_bool_array = np.repeat(True, element.shape[1])
 
-        white_cols = np.where(np.all(np.isclose(element, 255), axis=0))[0]
-        cols = list(Counter(white_cols).keys())
-        counts = list(Counter(white_cols).values())
-        white_cols = np.where(np.array(counts) == 4)[0]
-        white_col_idxs = [cols[idx] for idx in white_cols]
-        truth_bool_array[white_col_idxs] = False
+            white_cols = np.where(np.all(np.isclose(element, 255), axis=0))[0]
+            cols = list(Counter(white_cols).keys())
+            counts = list(Counter(white_cols).values())
+            white_cols = np.where(np.array(counts) == 4)[0]
+            white_col_idxs = [cols[idx] for idx in white_cols]
+            truth_bool_array[white_col_idxs] = False
 
-        return truth_bool_array
+            return truth_bool_array
 
-    left_truth_bool_array = get_plot_limits(element, 'left')
-    right_truth_bool_array = get_plot_limits(element, 'right')
+        left_truth_bool_array = get_plot_limits(element, 'left')
+        right_truth_bool_array = get_plot_limits(element, 'right')
 
-    fig = plt.figure(figsize=(10,10))
-    xll = np.argwhere(left_truth_bool_array==True)[0]
-    xul = element.shape[1]-np.argwhere(right_truth_bool_array==True)[0]
-    axe.set_xlim(xll,xul)
+        fig = plt.figure(figsize=(10,10))
+        xll = np.argwhere(left_truth_bool_array==True)[0]
+        xul = element.shape[1]-np.argwhere(right_truth_bool_array==True)[0]
+        axe.set_xlim(xll,xul)
+
     axe.axis('off')
     return axe,element
 
@@ -115,17 +153,35 @@ def perform_palantir_hyperparameter_search(adata: ad.AnnData,
                                   root_cell: str,
                                   hyperparam_dict: dict,
                                   hyperparam_info_dict: dict,
+                                  additional_plotting_dict_params: dict,
+                                  plotting_function: callable = palantir_pseudotime_hyperparam_plotting_function,
+                                  obsm_embedding: str = 'X_phate',
                                   save_path: str = None,
                                   unit_size: int = 10,
                                   kwargs: dict = {}):
 
+    """
+    Perform hyperparameter search for Palantir pseudotime analysis.
+
+    Parameters:
+    adata (ad.AnnData): Annotated data object.
+    data_key (str): Key for accessing the data in `adata`.
+    root_cell (str): Name of the root cell for pseudotime analysis.
+    hyperparam_dict (dict): Dictionary containing hyperparameters to be searched.
+    hyperparam_info_dict (dict): Dictionary containing information about hyperparameters.
+    obsm_embedding (str, optional): Key for accessing the embedding in `adata.obsm`. Defaults to 'X_phate'.
+    save_path (str, optional): Path to save the final figure. Defaults to None.
+    unit_size (int, optional): Size of each subplot in the final figure. Defaults to 10.
+    kwargs (dict, optional): Additional keyword arguments for plotting functions. Defaults to {}.
+
+    Returns:
+    ax: The matplotlib axis object containing the final figure.
+    """
     if save_path is not None:
         save_dir = os.path.dirname(save_path)
         if not os.path.exists(save_dir):
             raise ValueError(f'{save_dir} does not exist')
 
-    plotting_function = palantir_pseudotime_hyperparam_plotting_function
-                                  
     constant_param_name = hyperparam_info_dict['constant_label']
 
     backend = mpl.get_backend()
@@ -138,63 +194,42 @@ def perform_palantir_hyperparameter_search(adata: ad.AnnData,
 
     total_num_plots = final_num_rows * final_num_cols
 
-    element_list = []   
+    if total_num_plots < number_param_plots:
+        raise ValueError(f'Number of plots ({number_param_plots}) exceeds the number of subplots ({total_num_plots})')
+
+    fig_list = []
     for idx in tqdm(range(total_num_plots), total=number_param_plots, desc = 'Generating hyperparameter search plots'):
 
-        temp_hyperparam_dict = hyperparam_dict.copy()
-        temp_hyperparam_info_dict = hyperparam_info_dict.copy()
-        temp_hyperparam_dict[constant_param_name] = hyperparam_dict[constant_param_name][idx]
-        temp_hyperparam_info_dict['param_dict'] = temp_hyperparam_dict
 
         plotting_dict = {'adata':adata.copy(),
                             'data_key':data_key,
                             'unit_size':unit_size,
                             'root_cell':root_cell,
-                            'hyperparam_dict': temp_hyperparam_dict,
-                            'hyperparam_info_dict':temp_hyperparam_info_dict,
+                            'obsm_embedding':obsm_embedding,
                             'kwargs':kwargs,
                             }
 
+        if additional_plotting_dict_params:
+            plotting_dict.update(additional_plotting_dict_params)
+
         # -1 is needed for correct indexing 
         if idx <= number_param_plots-1:
+            temp_hyperparam_dict = hyperparam_dict.copy()
+            temp_hyperparam_info_dict = hyperparam_info_dict.copy()
+            temp_hyperparam_dict[constant_param_name] = hyperparam_dict[constant_param_name][idx]
+            temp_hyperparam_info_dict['param_dict'] = temp_hyperparam_dict
+
+            plotting_dict['hyperparam_dict'] = temp_hyperparam_dict
+            plotting_dict['hyperparam_info_dict'] = temp_hyperparam_info_dict
+
             fig = general_plotting_function(plotting_function, temp_hyperparam_info_dict, plotting_dict, hyperparam_search = True, unit_size=unit_size)
             
         else:
             #generate a blank plot to fill in the empty space
             fig = general_plotting_function(plotting_function, temp_hyperparam_info_dict, plotting_dict , blank = True, hyperparam_search = True)
     
-        canvas = fig.canvas
-        canvas.draw()
+        fig_list.append(fig)
 
-        #this is a numpy array of the plot
-        element = np.array(canvas.buffer_rgba())
+    combined_fig = combine_Lof_plots(fig_list, final_figure_dims, save_path=save_path)
 
-        element_list.append(element) 
-
-    #shapes the figures generated above into the final figure dimensions
-    counter = 0
-    fig_rows =[]
-    for plot in range(final_num_rows):
-        fig_row = element_list[counter:counter+final_num_cols]
-        fig_row = np.hstack(fig_row)
-        fig_rows.append(fig_row)
-        counter+=final_num_cols
-
-    fig_rows = tuple(fig_rows)
-
-    plot_array = np.vstack(fig_rows)
-
-    mpl.use(backend)
-
-    #plots the final figure
-    fig,ax = plt.subplots(figsize=(unit_size*final_num_cols, unit_size*final_num_rows), constrained_layout=True)
-
-    ax.set_axis_off()
-
-    ax.matshow(plot_array)
-    #plt.show()
-
-    if save_path is not None:
-        fig.savefig(save_path, dpi=300, bbox_inches='tight')
-
-    return ax            
+    return combined_fig
