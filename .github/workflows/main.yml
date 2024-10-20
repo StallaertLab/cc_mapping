@@ -4,7 +4,7 @@ on:
   pull_request:
   push:
     branches:
-      - package-creation
+      - package_creation
 
 jobs:
   lint:
