@@ -13,7 +13,8 @@ description = "A small example package"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-        'typinh_extensions',
+        'scipy==1.11.3',
+        'typing_extensions',
         'mellon>=1.0',
         'palantir==1.3.0',
         'phate==1.0.10',
@@ -21,7 +22,6 @@ dependencies = [
         'anndata==0.9.2',
         'scanpy==1.9.3',
         'scikit-learn==1.3.2',
-        'scipy==1.11.3'
 ]
 classifiers = [
   "Development Status :: 4 - Beta",
