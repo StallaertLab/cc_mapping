@@ -4,12 +4,15 @@ from typing import List
 
 from .utils import get_str_idx
 
-def row_data_partitioning(adata: ad.AnnData,
-                            search_str: str,
-                            search_obs: str,
-                            regex: bool = False,
-                            regex_flags: List[str] = None,
-                            reset_idx: bool  = True):
+
+def row_data_partitioning(
+    adata: ad.AnnData,
+    search_str: str,
+    search_obs: str,
+    regex: bool = False,
+    regex_flags: List[str] = None,
+    reset_idx: bool = True,
+):
     """
     Partition the rows of the input AnnData object based on a search string and observation column.
 
@@ -22,11 +25,13 @@ def row_data_partitioning(adata: ad.AnnData,
     Returns:
     ad.AnnData: The partitioned AnnData object.
     """
-    search_idxs, _ = get_str_idx(search_str, adata.obs[search_obs], regex=regex, regex_flags = regex_flags)
+    search_idxs, _ = get_str_idx(
+        search_str, adata.obs[search_obs], regex=regex, regex_flags=regex_flags
+    )
 
-    adata = adata[search_idxs,:].copy()
+    adata = adata[search_idxs, :].copy()
 
     if reset_idx == True:
-        adata.obs.index =np.arange(adata.shape[0]).astype(str)
+        adata.obs.index = np.arange(adata.shape[0]).astype(str)
 
     return adata
