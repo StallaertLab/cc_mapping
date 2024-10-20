@@ -1,27 +1,25 @@
-import warnings
 from typing import Optional
-
+from collections import OrderedDict
+import warnings
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
-import re
-from sklearn.preprocessing import LabelEncoder
 import numpy as np
-
 np.seterr(all="ignore")
+
+import re
 import anndata as ad
-import matplotlib.patches as mpatches
 from scipy import stats as st
 from tqdm import tqdm
-from sklearn import svm
-from collections import OrderedDict
 
 import matplotlib
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 from matplotlib import cm
 
+from sklearn.svm import SVC
 from sklearn.mixture import GaussianMixture
-
 from sklearn import metrics
+from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 
@@ -155,9 +153,9 @@ def random_forest_feature_selection(
             "bootstrap": True,
             "oob_score": True,
             "n_jobs": -1,
-        },
-    if train_test_split is None:
-        train_test_split = {"test_size": 0.25},
+        }
+    if train_test_split_params is None:
+        train_test_split_params = {"test_size": 0.25}
 
     if feature_set_name is None:
         feature_set_name = f"{method}_feature_set"
@@ -362,31 +360,6 @@ def random_forest_feature_selection(
 
 
 class GaussianMixtureModelThersholdingSuite:
-    """
-    GMM_CC_phase_prediction is a class for predicting cell cycle phases using Gaussian Mixture Models (GMM) on gene expression data.
-    Attributes:
-        adata (AnnData): Annotated data matrix.
-        default_label (str): Default label for observations.
-        GMM_obs_label (str): Label for GMM observations.
-        GMM_kwargs (dict): Keyword arguments for GMM.
-        thrersholding_info_dict (dict): Dictionary to store cell cycle phase information.
-    Methods:
-        __init__(self, adata, GMM_obs_label='GMM_phase_labels', GMM_kwargs=None):
-            Initializes the GMM_CC_phase_prediction class.
-        row_data_partitioning(self, GMM_set_name, obs_search_term=None, GMM_set_name_to_partition=None, phase_obs_label=None):
-            Partitions the row data based on the given parameters.
-        define_gene_adata(self, gene, row_data_partitioning=False, GMM_set_name=None):
-        fit_GMM(self, gene, ordered_GMM_labels, n_components=None, GMM_set_name=None, GMM_kwargs=None, duplicate_labels=False, row_data_partitioning=False):
-        compare_GMM_labels(self, GMM_set_name_list, GMM_set_save_name):
-            Compares the GMM labels for two sets and updates the gene_adata object with the results.
-        define_GMM_compare_parameters(self, GMM_set_name_list):
-            Defines GMM compare parameters.
-        plot_GMM(self, GMM_set_name, num_std=3, hist_kwargs=None, cmap=plt.cm.rainbow, unit_size=5, ratio=(1,1), x_lim_upper_percentile=100, resolution=1000, return_fig=False):
-        merge_GMM_adata_labels(self, GMM_set_name_list, new_labels=True):
-            Merges GMM adata labels.
-        plot_linear_decision_boundaries(self, gene_adata, gene_x, labels, x_lims, y_lims, resolution, cmap):
-        GMM_BIC_evaluation(self, GMM_set_name, bic_range=5, unit_size=5, ratio=(1,1), return_fig=False):
-    """
 
     def __init__(
         self,
@@ -421,18 +394,6 @@ class GaussianMixtureModelThersholdingSuite:
         set_name_to_partition: str = None,
         phase_obs_label: str = None,
     ):
-        """
-        Partition the row data based on the given parameters.
-
-        Parameters:
-        - GMM_set_name (str): The name of the GMM set.
-        - obs_search_term (str): The search term for selecting observations.
-        - GMM_set_name_to_partition (str, optional): The name of the GMM set to partition. Defaults to None.
-        - phase_obs_label (str, optional): The label for phase observations. Defaults to None.
-
-        Returns:
-        None
-        """
         if phase_obs_label is None:
             phase_obs_label = self.obs_save_key
 
@@ -459,24 +420,13 @@ class GaussianMixtureModelThersholdingSuite:
         self.thrersholding_info_dict[set_name]["trunc_adata"] = trunc_adata
 
     def define_gene_adata(
-        self, gene: str, row_data_partitioning: bool = False, GMM_set_name: bool = None
+        self, gene: str, gene_adata_partitioning: bool = False, set_name: bool = None
     ) -> ad.AnnData:
-        """
-        Returns a subset of the AnnData object containing the expression data for a specific gene.
 
-        Parameters:
-            gene (str): The name of the gene.
-            row_data_partitioning (bool, optional): If True, returns a subset of the AnnData object based on row data partitioning. Defaults to False.
-            GMM_set_name (bool, optional): The name of the GMM set. Required if row_data_partitioning is True. Defaults to None.
-
-        Returns:
-            AnnData: A subset of the AnnData object containing the expression data for the specified gene.
-        """
-
-        if not row_data_partitioning:
+        if not gene_adata_partitioning:
             return self.adata[:, gene].copy()
 
-        trunc_adata = self.thrersholding_info_dict[GMM_set_name]["trunc_adata"]
+        trunc_adata = self.thrersholding_info_dict[set_name]["trunc_adata"]
         return trunc_adata[:, gene].copy()
 
     def fit_gaussian_mixture_model(
@@ -487,35 +437,21 @@ class GaussianMixtureModelThersholdingSuite:
         set_name: str = None,
         gaussian_mixture_model_parameters: dict = None,
         duplicate_labels: bool = False,
-        row_data_partitioning: bool = False,
+        gene_adata_partitioning: bool = False,
     ):
-        """
-        Fits a Gaussian Mixture Model (GMM) to the gene expression data for a specific gene.
-
-        Args:
-            gene (str): The name of the gene.
-            ordered_GMM_labels (list): The ordered labels for the GMM components.
-            random_state (int, optional): The random seed for reproducibility. Defaults to 0.
-            n_components (int, optional): The number of components in the GMM. Defaults to None.
-            GMM_set_name (str, optional): The name of the GMM set. Defaults to None.
-            row_data_partitioning (bool, optional): Whether to perform row data partitioning. Defaults to False.
-
-        Returns:
-            None
-        """
-        gene_adata = self.define_gene_adata(gene, row_data_partitioning, set_name)
+        gene_adata = self.define_gene_adata(gene, gene_adata_partitioning, set_name)
 
         x = gene_adata.X.copy()
 
         if gaussian_mixture_model_parameters is None:
             gaussian_mixture_model_parameters = self.gaussian_mixture_model_parameters
 
-        GM = GaussianMixture(n_components=n_components, **gaussian_mixture_model_parameters)
+        gmm = GaussianMixture(n_components=n_components, **gaussian_mixture_model_parameters)
 
-        means = GM.fit(x).means_.squeeze()
-        covs = GM.fit(x).covariances_.squeeze()
-        weights = GM.fit(x).weights_
-        data_probs = GM.fit(x).predict_proba(x)
+        means = gmm.fit(x).means_.squeeze()
+        covs = gmm.fit(x).covariances_.squeeze()
+        weights = gmm.fit(x).weights_
+        data_probs = gmm.fit(x).predict_proba(x)
 
         mean_argsort_idx = np.argsort(means)
 
@@ -589,7 +525,7 @@ class GaussianMixtureModelThersholdingSuite:
             "gene_adata": gene_adata,
             "n_components": n_components,
             "ordered_labels": ordered_labels,
-            "row_data_partitioning": row_data_partitioning,
+            "row_data_partitioning": gene_adata_partitioning,
             "duplicate_labels": duplicate_labels,
         }
 
@@ -601,16 +537,6 @@ class GaussianMixtureModelThersholdingSuite:
 
     # labels for the GMM set names lave two labels, one with ~ and one without (ie. G0/~G0)
     def compare_set_labels(self, set_name_list: list, set_save_name: str):
-        """
-        Compare the GMM labels for two sets and update the gene_adata object with the results.
-
-        Parameters:
-        - GMM_set_name_list (list): A list of two GMM set names to compare.
-        - GMM_set_save_name (str): The name to save the GMM set comparison results.
-
-        Returns:
-        None
-        """
         # TOTEST: Verify set names exist
         # TOTEST: Verify list is 2 elements long
 
@@ -662,13 +588,13 @@ class GaussianMixtureModelThersholdingSuite:
         gene_adata.obs[self.obs_save_key] = np.repeat(
             self.default_label, gene_adata.shape[0]
         )
-        GMM_labels = gene_adata.obs[self.obs_save_key].copy()
+        labels_from_thresholding = gene_adata.obs[self.obs_save_key].copy()
 
-        GMM_labels[c1_pidxs] = compare_dict[c1_label]["c_positive_label"]
-        GMM_labels[c2_pidxs] = compare_dict[c2_label]["c_positive_label"]
-        GMM_labels[c1c2_idxs] = c1c2_labels
+        labels_from_thresholding[c1_pidxs] = compare_dict[c1_label]["c_positive_label"]
+        labels_from_thresholding[c2_pidxs] = compare_dict[c2_label]["c_positive_label"]
+        labels_from_thresholding[c1c2_idxs] = c1c2_labels
 
-        gene_adata.obs[self.obs_save_key] = GMM_labels
+        gene_adata.obs[self.obs_save_key] = labels_from_thresholding
 
         self.thrersholding_info_dict[set_save_name] = {
             "set_name_list": set_name_list,
@@ -676,30 +602,12 @@ class GaussianMixtureModelThersholdingSuite:
         }
 
     def define_compare_parameters(self, set_name_list: list):
-        """
-        Define GMM compare parameters.
-
-        Args:
-            GMM_set_name_list (list): List of GMM set names.
-
-        Returns:
-            dict: Dictionary containing compare parameters for each GMM set name.
-                The dictionary has the following structure:
-                {
-                    'GMM_set_name': {
-                        'c_data_probs': c_data_probs,
-                        'c_positive_label': c_positive_label,
-                        'c_pidxs': c_pidxs
-                    },
-                    ...
-                }
-        """
         compare_dict = OrderedDict()
 
         for key in set_name_list:
             c_phase_dict = self.thrersholding_info_dict[key]
             c_gene = c_phase_dict["gene"]
-            c_adata = c_phase_dict[f"gene_adata"]
+            c_adata = c_phase_dict["gene_adata"]
 
             if c_phase_dict["duplicate_labels"]:
                 c_data_probs = c_phase_dict["condensed_data_probs"]
@@ -729,34 +637,7 @@ class GaussianMixtureModelThersholdingSuite:
         x_lim_upper_percentile: int = 100,
         resolution: int = 1000,
         return_fig: bool = False,
-    ):
-        """
-        Plots the Gaussian Mixture Model (GMM) for a given dataset.
-        Parameters:
-        -----------
-        GMM_set_name : str
-            The name of the GMM set to be plotted.
-        num_std : int, optional
-            Number of standard deviations to use for plotting the Gaussian components (default is 3).
-        hist_kwargs : dict, optional
-            Additional keyword arguments to pass to the histogram plotting function (default is None).
-        cmap : plt.cm, optional
-            Colormap to use for the GMM components (default is plt.cm.rainbow).
-        unit_size : int, optional
-            Size of each unit in the plot (default is 5).
-        ratio : tuple, optional
-            Ratio of the plot dimensions (default is (1, 1)).
-        x_lim_upper_percentile : int, optional
-            Upper percentile to limit the x-axis of the histogram (default is 100).
-        resolution : int, optional
-            Resolution for the Gaussian component plots (default is 1000).
-        return_fig : bool, optional
-            If True, the function returns the figure object (default is False).
-        Returns:
-        --------
-        fig : matplotlib.figure.Figure, optional
-            The figure object if return_fig is True.
-        """
+    ) -> Optional[plt.figure]:
 
         cc_phase_dict = self.thrersholding_info_dict[set_name]
 
@@ -765,7 +646,7 @@ class GaussianMixtureModelThersholdingSuite:
         if cc_phase_dict["duplicate_labels"] is True:
             labels = cc_phase_dict["condensed_labels"]
         else:
-            labels = cc_phase_dict["ordered_GMM_labels"]
+            labels = cc_phase_dict["ordered_labels"]
 
         gene = gene_adata.var_names[0]
         gene_x = gene_adata.X.copy()
@@ -842,31 +723,30 @@ class GaussianMixtureModelThersholdingSuite:
 
         if return_fig:
             return fig
+        
+        return None
 
-    def merge_gene_adata_labels(self, GMM_set_name_list, new_labels: bool = True):
-        """_summary_
-
-        Args:
-            GMM_set_name_list (_type_): _description_
-            new_labels (bool, optional): _description_. Defaults to True.
-        """
+    def merge_gene_adata_labels(self,
+                                set_name_list: list,
+                                uniq_cell_id_obs_key: str,
+                                new_labels: bool = True) -> None:
         if new_labels:
-            GMM_labels = np.repeat(self.default_label, self.adata.shape[0]).astype(
+            labels_from_thresholding = np.repeat(self.default_label, self.adata.shape[0]).astype(
                 object
             )
         else:
-            GMM_labels = self.adata.obs[self.obs_save_key].copy()
+            labels_from_thresholding = self.adata.obs[self.obs_save_key].copy()
 
-        for GMM_set_name in GMM_set_name_list:
-            GMM_adata = self.thrersholding_info_dict[GMM_set_name]["gene_adata"]
+        for set_name in set_name_list:
+            gene_adata = self.thrersholding_info_dict[set_name]["gene_adata"]
 
-            GMM_cell_ids = GMM_adata.obs["CellID"].copy()
+            cell_uniq_id_list = gene_adata.obs[uniq_cell_id_obs_key].copy()
 
-            GMM_idxs, _ = get_str_idx(GMM_cell_ids, self.adata.obs["CellID"])
+            unique_cell_idxs, _ = get_str_idx(cell_uniq_id_list, self.adata.obs[uniq_cell_id_obs_key])
 
-            GMM_labels[GMM_idxs] = GMM_adata.obs[self.obs_save_key]
+            labels_from_thresholding[unique_cell_idxs] = gene_adata.obs[self.obs_save_key]
 
-        self.adata.obs[self.obs_save_key] = GMM_labels
+        self.adata.obs[self.obs_save_key] = labels_from_thresholding
 
     def plot_linear_decision_boundaries(
         self,
@@ -878,21 +758,6 @@ class GaussianMixtureModelThersholdingSuite:
         resolution: int,
         cmap: plt.cm,
     ):
-        """
-        Plots linear decision boundaries using Support Vector Machine (SVM) for classification.
-
-        Parameters:
-        - gene_adata (ad.AnnData): Annotated data matrix containing gene expression data.
-        - gene_x (np.ndarray): Array of gene expression values.
-        - labels (list): List of class labels.
-        - x_lims (tuple): Tuple specifying the x-axis limits for the plot.
-        - y_lims (tuple): Tuple specifying the y-axis limits for the plot.
-        - resolution (int): Number of points to generate along each axis for the decision boundaries.
-        - cmap (plt.cm): Colormap for the plot.
-
-        Returns:
-        None
-        """
         # encoding the labels from strings to integers
         encoder = LabelEncoder()
         encoder.fit(gene_adata.obs[self.obs_save_key].values)
@@ -904,15 +769,15 @@ class GaussianMixtureModelThersholdingSuite:
         # prepration of data to train the SVM
         dummy_feature = np.repeat(0, gene_adata.shape[0]).T
         svm_x = np.hstack([gene_x, dummy_feature.reshape(-1, 1)])
-        SVm = svm.SVC(random_state=0)
-        SVm.fit(svm_x, encoded_labels)
+        svc = SVC(random_state=0)
+        svc.fit(svm_x, encoded_labels)
 
         # Creating the grid to predict the labels of the new data and stacking dummy variable
         test_x_axis = np.linspace(x_lims[0], x_lims[1], resolution)
         svm_pred_x = np.vstack([test_x_axis, np.repeat(0, resolution)]).T
 
         # Using the trained SVM to predict the labels of the new data
-        predictions = SVm.predict(svm_pred_x)
+        predictions = svc.predict(svm_pred_x)
 
         # Reshaping the predictions to be used in the contourf function
         predictions_contourf = np.repeat(
@@ -933,26 +798,14 @@ class GaussianMixtureModelThersholdingSuite:
 
     def plot_bayesian_information_criteria(
         self,
-        GMM_set_name: str,
+        set_name: str,
         bic_range: int = 5,
         unit_size: int = 5,
         ratio: tuple = (1, 1),
         return_fig: bool = False,
     ):
-        """
-        Evaluates the Bayesian Information Criterion (BIC) for Gaussian Mixture Models (GMMs).
-
-        Parameters:
-        - GMM_set_name (str): The name of the GMM set to evaluate.
-        - bic_range (int): The range of number of components to test the BIC metric.
-        - unit_size (int): The size of the plot units.
-        - ratio (tuple): The ratio of the plot dimensions.
-
-        Returns:
-        None
-        """
-        gene_adata = self.thrersholding_info_dict[GMM_set_name]["gene_adata"]
-        n_components = self.thrersholding_info_dict[GMM_set_name]["n_components"]
+        gene_adata = self.thrersholding_info_dict[set_name]["gene_adata"]
+        n_components = self.thrersholding_info_dict[set_name]["n_components"]
 
         cc_x = gene_adata.X.copy()
 
@@ -975,7 +828,7 @@ class GaussianMixtureModelThersholdingSuite:
         plt.ylabel("Information criterion", fontsize=10)
         plt.axvline(n_components, color="red", linestyle="--", lw=3)
         plt.xticks(np.arange(0, bic_range + 1, 1))
-        plt.title(f"Bayesian Information Criteria Evaluation")
+        plt.title("Bayesian Information Criteria Evaluation")
         plt.tight_layout()
 
         if return_fig:

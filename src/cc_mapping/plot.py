@@ -1,15 +1,17 @@
-import matplotlib as mpl
-import pandas as pd
-import matplotlib.patches as mpatches
 import os
-import matplotlib._pylab_helpers
-import anndata as ad
-import matplotlib.pyplot as plt
-import numpy as np
 from typing import Union, List
 import itertools
-import anndata as ad
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import matplotlib._pylab_helpers
+import matplotlib.patches as mpatches
+
 from math import floor, ceil
+
+import pandas as pd
+import anndata as ad
+import numpy as np
 
 from .utils import get_str_idx
 
@@ -20,7 +22,7 @@ def plot_row_partitions(
     colors: Union[list, np.ndarray] = None,
     column_labels: Union[list, np.ndarray] = None,
     obs_embedding_key: str = "X_phate",
-    kwargs: dict = {},
+    kwargs: dict = None,
     plot_all: bool = True,
     plot_background: bool = True,
     unit_size: int = 20,
@@ -50,16 +52,17 @@ def plot_row_partitions(
 
     plotting_function = row_partition_plotting_function
 
+    if kwargs is None:
+        kwargs = {}
+
     plotting_dict = {
         "adata": adata,
         "Lof_colors": colors,
         "obs_search_term": obs_search_term,
         "obs_embedding_key": obs_embedding_key,
         "plot_background": plot_background,
-        "kwargs": {},
+        "kwargs": kwargs,
     }
-    if kwargs != {}:
-        plotting_dict["kwargs"] = kwargs
 
     if column_labels is not None:
         plotting_dict["column_labels"] = column_labels
@@ -173,7 +176,7 @@ def general_plotting_function(
     - fig: The created figure object.
     """
 
-    if hyperparam_search == True:
+    if hyperparam_search is True:
         param_dict = param_info_dict["param_dict"]
 
         row_param_name = param_info_dict["row_label"]
@@ -255,7 +258,7 @@ def general_plotting_function(
                         left_limit, right_limit, facecolor=row_cmap(col_num), alpha=0.5
                     )
 
-                    if hyperparam_search == True:
+                    if hyperparam_search is True:
                         init_row.annotate(
                             f"{col_param_name} = {col_param_list[col_num]}", **anno_opts
                         )
@@ -282,7 +285,7 @@ def general_plotting_function(
                     )
 
                     # Indexing is -(row_num+1) to make the plots go from top to bottom
-                    if hyperparam_search == True:
+                    if hyperparam_search is True:
                         init_col.annotate(
                             f"{row_param_name} = {row_param_list[-(row_num+1)]}",
                             rotation=90,
@@ -354,8 +357,8 @@ def get_legend(adata: ad.AnnData, color_name: str, label_name: str = None):
     return patch_list, colors
 
 
-def combine_Lof_plots(
-    Lof_plots: List[mpl.figure.Figure] = None,
+def combine_plots(
+    list_of_plots: List[mpl.figure.Figure] = None,
     fig_dims: tuple = None,
     default_padding: tuple = (0, 0),
     default_padding_color: tuple = 255,
@@ -383,13 +386,13 @@ def combine_Lof_plots(
     """
 
     if inline:
-        Lof_plots = [
+        list_of_plots = [
             manager.canvas.figure
             for manager in matplotlib._pylab_helpers.Gcf.get_all_fig_managers()
         ]
 
     # converts the figures into numpy arrays
-    for fig_idx, fig in enumerate(Lof_plots):
+    for fig_idx, fig in enumerate(list_of_plots):
         if isinstance(fig, tuple):
             fig = fig[0]
 
@@ -398,17 +401,17 @@ def combine_Lof_plots(
 
         element = np.array(canvas.buffer_rgba())
 
-        Lof_plots[fig_idx] = element
+        list_of_plots[fig_idx] = element
 
     if inline:
         for fig in plt.get_fignums():
             plt.close(fig)
 
     max_figure_dims = np.max(
-        [(fig.shape[0], fig.shape[1]) for fig in Lof_plots], axis=0
+        [(fig.shape[0], fig.shape[1]) for fig in list_of_plots], axis=0
     )
 
-    for fig_idx, fig in enumerate(Lof_plots):
+    for fig_idx, fig in enumerate(list_of_plots):
 
         row_diff = max_figure_dims[0] - fig.shape[0]
         col_diff = max_figure_dims[1] - fig.shape[1]
@@ -442,21 +445,21 @@ def combine_Lof_plots(
             constant_values=default_padding_color,
         )
 
-        Lof_plots[fig_idx] = fig
+        list_of_plots[fig_idx] = fig
 
     final_num_rows = fig_dims[0]
     final_num_cols = fig_dims[1]
 
-    if len(Lof_plots) < final_num_rows * final_num_cols:
-        fig_num_diff = final_num_rows * final_num_cols - len(Lof_plots)
+    if len(list_of_plots) < final_num_rows * final_num_cols:
+        fig_num_diff = final_num_rows * final_num_cols - len(list_of_plots)
         for _ in range(fig_num_diff):
-            Lof_plots.append(np.ones_like(fig) * default_padding_color)
+            list_of_plots.append(np.ones_like(fig) * default_padding_color)
 
     # shapes the figures generated above into the final figure dimensions
     counter = 0
     fig_rows = []
     for _ in range(final_num_rows):
-        fig_row = Lof_plots[counter : counter + final_num_cols]
+        fig_row = list_of_plots[counter : counter + final_num_cols]
         fig_row = np.hstack(fig_row)
         fig_rows.append(fig_row)
         counter += final_num_cols

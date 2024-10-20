@@ -22,7 +22,7 @@ def run_palantir_pseudotime(
     obsm_embedding: str = "X_phate",
     seed: int = 0,
     plot: bool = True,
-    kwargs: dict = {},
+    kwargs: dict = None,
 ):
     """
     Runs the Palantir pseudotime analysis on the provided AnnData object.
@@ -42,6 +42,10 @@ def run_palantir_pseudotime(
     Returns:
         matplotlib.figure.Figure or None: The generated plot figure, or None if an error occurred.
     """
+
+    if kwargs is None:
+        kwargs = {}
+
     try:
         with open(os.devnull, "w") as devnull:
             with contextlib.redirect_stdout(devnull):
@@ -71,6 +75,8 @@ def run_palantir_pseudotime(
         )
         plt.tight_layout()
         return fig
+    
+    
 
 
 def palantir_pseudotime_hyperparam_plotting_function(
@@ -115,6 +121,8 @@ def palantir_pseudotime_hyperparam_plotting_function(
     elif row_param_name == "knns":
         knn = row_param_list[row_idx]
         num_waypoints = col_param_list[col_idx]
+    else:
+        raise KeyError("row_param_name must equal num_waypoints or knns")
 
     n_components = hyperparam_dict["n_components"]
 

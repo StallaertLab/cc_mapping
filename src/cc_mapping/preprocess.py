@@ -1,6 +1,5 @@
 import numpy as np
 import anndata as ad
-from typing import List
 
 from .utils import get_str_idx
 
@@ -10,7 +9,7 @@ def row_data_partitioning(
     search_str: str,
     search_obs: str,
     regex: bool = False,
-    regex_flags: List[str] = None,
+    regex_flags: list[str] = None,
     reset_idx: bool = True,
 ):
     """
@@ -31,7 +30,7 @@ def row_data_partitioning(
 
     adata = adata[search_idxs, :].copy()
 
-    if reset_idx == True:
+    if reset_idx is True:
         adata.obs.index = np.arange(adata.shape[0]).astype(str)
 
     return adata

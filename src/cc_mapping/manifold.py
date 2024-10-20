@@ -1,20 +1,19 @@
-import anndata as ad
-import pandas as pd
-import matplotlib as mpl
 import os
-import numpy as np
-
-np.seterr(all="ignore")
-import anndata as ad
-from tqdm import tqdm
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-import phate
-
 from typing import Union
 
-from .plot import general_plotting_function, get_legend, combine_Lof_plots
+import anndata as ad
+import pandas as pd
+import phate
 
+import numpy as np
+np.seterr(all="ignore")
+
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+
+from tqdm import tqdm
+
+from .plot import general_plotting_function, get_legend, combine_Lof_plots
 
 def run_phate(
     adata: ad.AnnData,
@@ -62,7 +61,7 @@ def plot_phate_coords(
     adata: ad.AnnData = None,
     colors: Union[np.ndarray, list] = None,
     phate_coords: np.ndarray = None,
-    kwargs: dict = {},
+    kwargs: dict = None,
     axe: mpl.axes = None,
     hyperparam: bool = False,
     unit_size: int = 5,
@@ -86,6 +85,12 @@ def plot_phate_coords(
     Returns:
     mpl.figure.Figure, mpl.axes.Axes or mpl.axes.Axes: If `return_fig` is True, returns the figure and axes objects. Otherwise, returns the axes object.
     """
+
+    if not isinstance(kwargs,dict):
+        raise ValueError("kwargs is not a dict")
+    
+    if kwargs is None:
+        kwargs = {}
 
     if not axe:
         fig, axe = plt.subplots(1, 1, figsize=(unit_size, unit_size))
