@@ -1,4 +1,5 @@
 import warnings
+from typing import Optional
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
@@ -13,7 +14,10 @@ from scipy import stats as st
 from tqdm import tqdm
 from sklearn import svm
 from collections import OrderedDict
+
+import matplotlib
 import matplotlib.pyplot as plt
+from matplotlib import cm
 
 from sklearn.mixture import GaussianMixture
 
@@ -31,7 +35,7 @@ def train_random_forest_model(
     rf_params: dict,
     random_state: int,
     train_test_split_params: dict,
-    FS_desc: str = "",
+    feature_set_description: str = "",
     verbose: bool = True,
 ):
     """
@@ -61,7 +65,7 @@ def train_random_forest_model(
     accuracy = metrics.accuracy_score(test_labels, rf_pred_labels)
 
     if verbose:
-        print(f"Classification Report for RF model trained with {FS_desc} feature set")
+        print(f"Classification Report for RF model trained with {feature_set_description} feature set")
         print("##################################################################")
         print()
         print(metrics.classification_report(test_labels, rf_pred_labels))
@@ -69,7 +73,7 @@ def train_random_forest_model(
     return rf_classifier, accuracy
 
 
-def __RF_increment_counter(
+def __random_forest_increment_counter(
     acc_list, optim_feat_num, counter, stable_counter, threshold
 ):
     """
@@ -117,14 +121,8 @@ def random_forest_feature_selection(
     verbose: bool = True,
     save_path: str = None,
     cutoff_method: str = "increment",
-    train_test_split_params: dict = {"test_size": 0.25},
-    rf_params: dict = {
-        "min_samples_leaf": 50,
-        "n_estimators": 150,
-        "bootstrap": True,
-        "oob_score": True,
-        "n_jobs": -1,
-    },
+    train_test_split_params: Optional[dict]=  None,
+    rf_params: Optional[dict] = None,
 ) -> ad.AnnData:
     """
     Trains a random forest classifier on the training feature set and labels using one of two methods:
@@ -151,6 +149,16 @@ def random_forest_feature_selection(
         ad.AnnData: The adata object with the feature set added to the .var attribute.
     """
 
+    if rf_params is None:
+        rf_params = { "min_samples_leaf": 50,
+            "n_estimators": 150,
+            "bootstrap": True,
+            "oob_score": True,
+            "n_jobs": -1,
+        },
+    if train_test_split is None:
+        train_test_split = {"test_size": 0.25},
+
     if feature_set_name is None:
         feature_set_name = f"{method}_feature_set"
 
@@ -161,7 +169,7 @@ def random_forest_feature_selection(
     # TODO: I need to make this more generalizable because there are other forms of nan in the data
     try:
         phase_nan_idx, _ = get_str_idx("nan", adata.obs[training_labels])
-    except:
+    except KeyError:
         phase_nan_idx = []
 
     # isolates the feature set from the adata object
@@ -186,7 +194,7 @@ def random_forest_feature_selection(
         rf_params=rf_params,
         train_test_split_params=train_test_split_params,
         verbose=verbose,
-        FS_desc="intial",
+        feature_set_description="intial",
         random_state=random_state,
     )
 
@@ -199,7 +207,7 @@ def random_forest_feature_selection(
     # this works with any number of features
     if re.search("(?<=RF_min_)[0-9]+", method):
         optim_feat_num = int(re.search("(?<=RF_min_)[0-9]+", method).group(0))
-        optim_RF_feature_set = sorted_feature_set[:optim_feat_num]
+        optimum_random_forest_feature_set = sorted_feature_set[:optim_feat_num]
 
     elif method == "RF_min_max":
 
@@ -256,7 +264,7 @@ def random_forest_feature_selection(
                     temp_max_acc_arg, temp_counter = max_acc_arg, counter
                     for _ in range(stable_counter):
                         temp_max_acc_arg, temp_counter, continue_bool = (
-                            __RF_increment_counter(
+                            __random_forest_increment_counter(
                                 acc_list,
                                 temp_max_acc_arg,
                                 temp_counter,
@@ -277,7 +285,7 @@ def random_forest_feature_selection(
         acc_list = np.array(acc_list)
         optim_feat_num = max_acc_arg
 
-    optim_RF_feature_set = sorted_feature_set[:optim_feat_num]
+    optimum_random_forest_feature_set = sorted_feature_set[:optim_feat_num]
 
     optim_feature_set = sorted_features[:, :optim_feat_num]
 
@@ -288,7 +296,7 @@ def random_forest_feature_selection(
         rf_params=rf_params,
         train_test_split_params=train_test_split_params,
         verbose=verbose,
-        FS_desc="optimal",
+        feature_set_description="optimal",
         random_state=random_state,
     )
 
@@ -301,17 +309,17 @@ def random_forest_feature_selection(
 
         print("Optimal Feature Set sorted by RF feature importance")
         print("###################################################")
-        print(optim_RF_feature_set)
+        print(optimum_random_forest_feature_set)
 
     # converts the optimal feature set to a boolean array
-    feat_idxs, _ = get_str_idx(optim_RF_feature_set, adata.var_names.values)
+    feat_idxs, _ = get_str_idx(optimum_random_forest_feature_set, adata.var_names.values)
     fs_bool = np.repeat(False, adata.shape[1])
     fs_bool[feat_idxs] = True
 
     adata.var[feature_set_name] = fs_bool
 
     if plot and method == "RF_min_max":
-        fig = plt.figure(figsize=(10, 5))
+        plt.figure(figsize=(10, 5))
 
         x_axis = np.arange(len(acc_list), dtype=int)
         plt.plot(x_axis, acc_list)
@@ -353,7 +361,7 @@ def random_forest_feature_selection(
     return adata
 
 
-class GMM_CC_phase_prediction:
+class GaussianMixtureModelThersholdingSuite:
     """
     GMM_CC_phase_prediction is a class for predicting cell cycle phases using Gaussian Mixture Models (GMM) on gene expression data.
     Attributes:
@@ -361,7 +369,7 @@ class GMM_CC_phase_prediction:
         default_label (str): Default label for observations.
         GMM_obs_label (str): Label for GMM observations.
         GMM_kwargs (dict): Keyword arguments for GMM.
-        cc_phase_info_dict (dict): Dictionary to store cell cycle phase information.
+        thrersholding_info_dict (dict): Dictionary to store cell cycle phase information.
     Methods:
         __init__(self, adata, GMM_obs_label='GMM_phase_labels', GMM_kwargs=None):
             Initializes the GMM_CC_phase_prediction class.
@@ -383,34 +391,34 @@ class GMM_CC_phase_prediction:
     def __init__(
         self,
         adata,
-        GMM_obs_label: str = "GMM_phase_labels",
-        GMM_kwargs: dict = None,
+        obs_save_key: str = "labels",
+        gaussian_mixture_model_parameters: dict = None,
     ):
 
         self.adata = adata
         self.default_label = "NA"
-        self.GMM_obs_label = GMM_obs_label
+        self.obs_save_key = obs_save_key
 
-        if self.GMM_obs_label in adata.obs.columns:
-            del self.adata.obs[self.GMM_obs_label]
+        if self.obs_save_key in adata.obs.columns:
+            del self.adata.obs[self.obs_save_key]
 
-        if GMM_kwargs is None:
-            self.GMM_kwargs = {}
+        if gaussian_mixture_model_parameters is None:
+            self.gaussian_mixture_model_parameters = {}
         else:
-            self.GMM_kwargs = GMM_kwargs
+            self.gaussian_mixture_model_parameters = gaussian_mixture_model_parameters
 
-        if "random_state" not in self.GMM_kwargs.keys():
+        if "random_state" not in self.gaussian_mixture_model_parameters.keys():
             raise ValueError(
                 "The random_state parameter is required for reproducibility."
             )
 
-        self.cc_phase_info_dict = {}
+        self.thrersholding_info_dict = {}
 
-    def row_data_partitioning(
+    def gene_adata_row_partitioning(
         self,
-        GMM_set_name: str,
+        set_name: str,
         obs_search_term: str = None,
-        GMM_set_name_to_partition: str = None,
+        set_name_to_partition: str = None,
         phase_obs_label: str = None,
     ):
         """
@@ -426,17 +434,17 @@ class GMM_CC_phase_prediction:
         None
         """
         if phase_obs_label is None:
-            phase_obs_label = self.GMM_obs_label
+            phase_obs_label = self.obs_save_key
 
         if obs_search_term is None:
             obs_search_term = self.default_label
 
-        if GMM_set_name_to_partition is None:
-            trunc_adata = preprocess.row_data_partitioning(
+        if set_name_to_partition is None:
+            trunc_adata = row_data_partitioning(
                 self.adata, obs_search_term, phase_obs_label
             )
         else:
-            gene_adata = self.cc_phase_info_dict[GMM_set_name_to_partition][
+            gene_adata = self.thrersholding_info_dict[set_name_to_partition][
                 "gene_adata"
             ]
 
@@ -447,12 +455,12 @@ class GMM_CC_phase_prediction:
 
             trunc_adata = self.adata[self.adata.obs["CellID"].isin(cell_ids)].copy()
 
-        self.cc_phase_info_dict[GMM_set_name] = {}
-        self.cc_phase_info_dict[GMM_set_name]["trunc_adata"] = trunc_adata
+        self.thrersholding_info_dict[set_name] = {}
+        self.thrersholding_info_dict[set_name]["trunc_adata"] = trunc_adata
 
     def define_gene_adata(
         self, gene: str, row_data_partitioning: bool = False, GMM_set_name: bool = None
-    ):
+    ) -> ad.AnnData:
         """
         Returns a subset of the AnnData object containing the expression data for a specific gene.
 
@@ -467,17 +475,17 @@ class GMM_CC_phase_prediction:
 
         if not row_data_partitioning:
             return self.adata[:, gene].copy()
-        else:
-            trunc_adata = self.cc_phase_info_dict[GMM_set_name]["trunc_adata"]
-            return trunc_adata[:, gene].copy()
 
-    def fit_GMM(
+        trunc_adata = self.thrersholding_info_dict[GMM_set_name]["trunc_adata"]
+        return trunc_adata[:, gene].copy()
+
+    def fit_gaussian_mixture_model(
         self,
         gene: str,
-        ordered_GMM_labels: list,
+        ordered_labels: list,
         n_components: int = None,
-        GMM_set_name: str = None,
-        GMM_kwargs: dict = None,
+        set_name: str = None,
+        gaussian_mixture_model_parameters: dict = None,
         duplicate_labels: bool = False,
         row_data_partitioning: bool = False,
     ):
@@ -495,14 +503,14 @@ class GMM_CC_phase_prediction:
         Returns:
             None
         """
-        gene_adata = self.define_gene_adata(gene, row_data_partitioning, GMM_set_name)
+        gene_adata = self.define_gene_adata(gene, row_data_partitioning, set_name)
 
         x = gene_adata.X.copy()
 
-        if GMM_kwargs is None:
-            GMM_kwargs = self.GMM_kwargs
+        if gaussian_mixture_model_parameters is None:
+            gaussian_mixture_model_parameters = self.gaussian_mixture_model_parameters
 
-        GM = GaussianMixture(n_components=n_components, **GMM_kwargs)
+        GM = GaussianMixture(n_components=n_components, **gaussian_mixture_model_parameters)
 
         means = GM.fit(x).means_.squeeze()
         covs = GM.fit(x).covariances_.squeeze()
@@ -511,7 +519,7 @@ class GMM_CC_phase_prediction:
 
         mean_argsort_idx = np.argsort(means)
 
-        GMM_dict = {
+        gaussian_mixture_model_results = {
             "means": means[mean_argsort_idx],
             "covs": covs[mean_argsort_idx],
             "weights": weights[mean_argsort_idx],
@@ -519,9 +527,9 @@ class GMM_CC_phase_prediction:
             "n_components": n_components,
         }
 
-        data_probs = GMM_dict["data_probs"].copy()
+        data_probs = gaussian_mixture_model_results["data_probs"].copy()
 
-        if len(ordered_GMM_labels) != len(set(ordered_GMM_labels)):
+        if len(ordered_labels) != len(set(ordered_labels)):
             if not duplicate_labels:
                 raise ValueError(
                     "The ordered GMM labels contain duplicate values. Please ensure that the labels are unique or set duplicate_labels to True."
@@ -530,18 +538,18 @@ class GMM_CC_phase_prediction:
             dup_labels_list = set(
                 [
                     label
-                    for label in ordered_GMM_labels
-                    if ordered_GMM_labels.count(label) > 1
+                    for label in ordered_labels
+                    if ordered_labels.count(label) > 1
                 ]
             )
 
             temp_data_probs = data_probs.copy()
-            label_idxs_to_keep = np.repeat(True, len(ordered_GMM_labels))
+            label_idxs_to_keep = np.repeat(True, len(ordered_labels))
             cols_to_delete = []
             for dup_label in dup_labels_list:
                 dup_idxs = [
                     idx
-                    for idx, label in enumerate(ordered_GMM_labels)
+                    for idx, label in enumerate(ordered_labels)
                     if label == dup_label
                 ]
                 dup_data_probs = temp_data_probs.copy()[:, dup_idxs]
@@ -556,7 +564,7 @@ class GMM_CC_phase_prediction:
             temp_data_probs = np.delete(temp_data_probs, cols_to_delete, axis=1)
             condensed_labels = [
                 label
-                for idx, label in enumerate(ordered_GMM_labels)
+                for idx, label in enumerate(ordered_labels)
                 if label_idxs_to_keep[idx]
             ]
 
@@ -567,32 +575,32 @@ class GMM_CC_phase_prediction:
         if duplicate_labels:
             phase_labels = [condensed_labels[i] for i in argmax_data_probs]
         else:
-            phase_labels = [ordered_GMM_labels[i] for i in argmax_data_probs]
+            phase_labels = [ordered_labels[i] for i in argmax_data_probs]
 
-        gene_adata.obs[self.GMM_obs_label] = phase_labels
+        gene_adata.obs[self.obs_save_key] = phase_labels
 
-        if GMM_set_name is None:
-            GMM_set_name = str(len(self.cc_phase_info_dict.keys()))
+        if set_name is None:
+            set_name = str(len(self.thrersholding_info_dict.keys()))
 
-        gene_adata.uns[f"{gene}_GMM_dict"] = GMM_dict
+        gene_adata.uns[f"{gene}_gmm_results"] = gaussian_mixture_model_results
 
-        self.cc_phase_info_dict[GMM_set_name] = {
+        self.thrersholding_info_dict[set_name] = {
             "gene": gene,
             "gene_adata": gene_adata,
             "n_components": n_components,
-            "ordered_GMM_labels": ordered_GMM_labels,
+            "ordered_labels": ordered_labels,
             "row_data_partitioning": row_data_partitioning,
             "duplicate_labels": duplicate_labels,
         }
 
         if duplicate_labels:
-            self.cc_phase_info_dict[GMM_set_name]["condensed_labels"] = condensed_labels
-            self.cc_phase_info_dict[GMM_set_name][
+            self.thrersholding_info_dict[set_name]["condensed_labels"] = condensed_labels
+            self.thrersholding_info_dict[set_name][
                 "condensed_data_probs"
             ] = temp_data_probs
 
     # labels for the GMM set names lave two labels, one with ~ and one without (ie. G0/~G0)
-    def compare_GMM_labels(self, GMM_set_name_list: list, GMM_set_save_name: str):
+    def compare_set_labels(self, set_name_list: list, set_save_name: str):
         """
         Compare the GMM labels for two sets and update the gene_adata object with the results.
 
@@ -603,24 +611,27 @@ class GMM_CC_phase_prediction:
         Returns:
         None
         """
-        c1_label = GMM_set_name_list[0]
-        c2_label = GMM_set_name_list[1]
+        # TOTEST: Verify set names exist
+        # TOTEST: Verify list is 2 elements long
+
+        c1_label = set_name_list[0]
+        c2_label = set_name_list[1]
 
         adata_size_list = []
-        for key in GMM_set_name_list:
-            c_phase_dict = self.cc_phase_info_dict[key]
-            adata_size_list.append(c_phase_dict[f"gene_adata"].shape[0])
+        for key in set_name_list:
+            c_phase_dict = self.thrersholding_info_dict[key]
+            adata_size_list.append(c_phase_dict["gene_adata"].shape[0])
 
         if adata_size_list[0] != adata_size_list[1]:
             raise ValueError(
                 "The two GMM sets have different number of cells. Please ensure that the GMM sets have the same number of cells."
             )
 
-        genes = [self.cc_phase_info_dict[key]["gene"] for key in GMM_set_name_list]
+        genes = [self.thrersholding_info_dict[key]["gene"] for key in set_name_list]
 
-        compare_dict = self.define_GMM_compare_parameters(GMM_set_name_list)
+        compare_dict = self.define_compare_parameters(set_name_list)
 
-        labels = [compare_dict[key]["c_positive_label"] for key in GMM_set_name_list]
+        labels = [compare_dict[key]["c_positive_label"] for key in set_name_list]
 
         c1_pidxs = compare_dict[c1_label]["c_pidxs"]
         c2_pidxs = compare_dict[c2_label]["c_pidxs"]
@@ -648,23 +659,23 @@ class GMM_CC_phase_prediction:
         c1c2_labels = [labels[arg_idx] for arg_idx in argmax_c1c2_data_probs]
 
         gene_adata = self.define_gene_adata(genes)
-        gene_adata.obs[self.GMM_obs_label] = np.repeat(
+        gene_adata.obs[self.obs_save_key] = np.repeat(
             self.default_label, gene_adata.shape[0]
         )
-        GMM_labels = gene_adata.obs[self.GMM_obs_label].copy()
+        GMM_labels = gene_adata.obs[self.obs_save_key].copy()
 
         GMM_labels[c1_pidxs] = compare_dict[c1_label]["c_positive_label"]
         GMM_labels[c2_pidxs] = compare_dict[c2_label]["c_positive_label"]
         GMM_labels[c1c2_idxs] = c1c2_labels
 
-        gene_adata.obs[self.GMM_obs_label] = GMM_labels
+        gene_adata.obs[self.obs_save_key] = GMM_labels
 
-        self.cc_phase_info_dict[GMM_set_save_name] = {
-            "GMM_set_name_list": GMM_set_name_list,
+        self.thrersholding_info_dict[set_save_name] = {
+            "set_name_list": set_name_list,
             "gene_adata": gene_adata.copy(),
         }
 
-    def define_GMM_compare_parameters(self, GMM_set_name_list: list):
+    def define_compare_parameters(self, set_name_list: list):
         """
         Define GMM compare parameters.
 
@@ -685,17 +696,17 @@ class GMM_CC_phase_prediction:
         """
         compare_dict = OrderedDict()
 
-        for key in GMM_set_name_list:
-            c_phase_dict = self.cc_phase_info_dict[key]
+        for key in set_name_list:
+            c_phase_dict = self.thrersholding_info_dict[key]
             c_gene = c_phase_dict["gene"]
             c_adata = c_phase_dict[f"gene_adata"]
 
             if c_phase_dict["duplicate_labels"]:
                 c_data_probs = c_phase_dict["condensed_data_probs"]
             else:
-                c_data_probs = c_adata.uns[f"{c_gene}_GMM_dict"]["data_probs"]
+                c_data_probs = c_adata.uns[f"{c_gene}_gmm_results"]["data_probs"]
 
-            c_phase_labels = c_adata.obs[self.GMM_obs_label]
+            c_phase_labels = c_adata.obs[self.obs_save_key]
             c_positive_label = np.unique(c_phase_labels)[1].replace("~", "")
             c_pidxs, _ = get_str_idx(c_positive_label, c_phase_labels)
 
@@ -707,12 +718,12 @@ class GMM_CC_phase_prediction:
 
         return compare_dict
 
-    def plot_GMM(
+    def plot_thresholding_results(
         self,
-        GMM_set_name: str,
+        set_name: str,
         num_std: int = 3,
         hist_kwargs: dict = None,
-        cmap: plt.cm = plt.cm.rainbow,
+        cmap: matplotlib.colors.LinearSegmentedColormap = cm.rainbow,
         unit_size: int = 5,
         ratio: tuple = (1, 1),
         x_lim_upper_percentile: int = 100,
@@ -747,23 +758,23 @@ class GMM_CC_phase_prediction:
             The figure object if return_fig is True.
         """
 
-        cc_phase_dict = self.cc_phase_info_dict[GMM_set_name]
+        cc_phase_dict = self.thrersholding_info_dict[set_name]
 
         gene_adata = cc_phase_dict["gene_adata"]
 
-        if cc_phase_dict["duplicate_labels"] == True:
+        if cc_phase_dict["duplicate_labels"] is True:
             labels = cc_phase_dict["condensed_labels"]
         else:
             labels = cc_phase_dict["ordered_GMM_labels"]
 
         gene = gene_adata.var_names[0]
         gene_x = gene_adata.X.copy()
-        GMM_dict = gene_adata.uns[f"{gene}_GMM_dict"]
+        gmm_results = gene_adata.uns[f"{gene}_gmm_results"]
 
-        n_components = GMM_dict["n_components"]
-        means = GMM_dict["means"]
-        covs = GMM_dict["covs"]
-        weights = GMM_dict["weights"]
+        n_components = gmm_results["n_components"]
+        means = gmm_results["means"]
+        covs = gmm_results["covs"]
+        weights = gmm_results["weights"]
 
         colors = cmap(np.linspace(0, 1, n_components))
 
@@ -832,7 +843,7 @@ class GMM_CC_phase_prediction:
         if return_fig:
             return fig
 
-    def merge_GMM_adata_labels(self, GMM_set_name_list, new_labels: bool = True):
+    def merge_gene_adata_labels(self, GMM_set_name_list, new_labels: bool = True):
         """_summary_
 
         Args:
@@ -844,18 +855,18 @@ class GMM_CC_phase_prediction:
                 object
             )
         else:
-            GMM_labels = self.adata.obs[self.GMM_obs_label].copy()
+            GMM_labels = self.adata.obs[self.obs_save_key].copy()
 
         for GMM_set_name in GMM_set_name_list:
-            GMM_adata = self.cc_phase_info_dict[GMM_set_name]["gene_adata"]
+            GMM_adata = self.thrersholding_info_dict[GMM_set_name]["gene_adata"]
 
             GMM_cell_ids = GMM_adata.obs["CellID"].copy()
 
             GMM_idxs, _ = get_str_idx(GMM_cell_ids, self.adata.obs["CellID"])
 
-            GMM_labels[GMM_idxs] = GMM_adata.obs[self.GMM_obs_label]
+            GMM_labels[GMM_idxs] = GMM_adata.obs[self.obs_save_key]
 
-        self.adata.obs[self.GMM_obs_label] = GMM_labels
+        self.adata.obs[self.obs_save_key] = GMM_labels
 
     def plot_linear_decision_boundaries(
         self,
@@ -884,11 +895,11 @@ class GMM_CC_phase_prediction:
         """
         # encoding the labels from strings to integers
         encoder = LabelEncoder()
-        encoder.fit(gene_adata.obs[self.GMM_obs_label].values)
+        encoder.fit(gene_adata.obs[self.obs_save_key].values)
 
         # Reassigning the classes to the encoder
         encoder.classes_ = np.array(labels)
-        encoded_labels = encoder.transform(np.array(gene_adata.obs[self.GMM_obs_label]))
+        encoded_labels = encoder.transform(np.array(gene_adata.obs[self.obs_save_key]))
 
         # prepration of data to train the SVM
         dummy_feature = np.repeat(0, gene_adata.shape[0]).T
@@ -920,7 +931,7 @@ class GMM_CC_phase_prediction:
             zorder=2,
         )
 
-    def GMM_BIC_evaluation(
+    def plot_bayesian_information_criteria(
         self,
         GMM_set_name: str,
         bic_range: int = 5,
@@ -940,8 +951,8 @@ class GMM_CC_phase_prediction:
         Returns:
         None
         """
-        gene_adata = self.cc_phase_info_dict[GMM_set_name]["gene_adata"]
-        n_components = self.cc_phase_info_dict[GMM_set_name]["n_components"]
+        gene_adata = self.thrersholding_info_dict[GMM_set_name]["gene_adata"]
+        n_components = self.thrersholding_info_dict[GMM_set_name]["n_components"]
 
         cc_x = gene_adata.X.copy()
 
@@ -950,8 +961,8 @@ class GMM_CC_phase_prediction:
         for _ in range(
             bic_range
         ):  # test the AIC/BIC metric between 1 and 10 components
-            gmm = GaussianMixture(n_components=counter, **self.GMM_kwargs)
-            labels = gmm.fit(cc_x).predict(cc_x)
+            gmm = GaussianMixture(n_components=counter, **self.gaussian_mixture_model_parameters)
+            gmm.fit(cc_x).predict(cc_x)
             bic = gmm.bic(cc_x)
             bics.append(bic)
             counter = counter + 1
@@ -964,7 +975,7 @@ class GMM_CC_phase_prediction:
         plt.ylabel("Information criterion", fontsize=10)
         plt.axvline(n_components, color="red", linestyle="--", lw=3)
         plt.xticks(np.arange(0, bic_range + 1, 1))
-        plt.title(f"GMM BIC evaluation")
+        plt.title(f"Bayesian Information Criteria Evaluation")
         plt.tight_layout()
 
         if return_fig:

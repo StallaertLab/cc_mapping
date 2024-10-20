@@ -77,8 +77,12 @@ def get_str_idx(
                 match_list.append(feat_idx_names)
 
         feat_idx_names = np.vstack(match_list)
+    
+    if feat_idx_names.shape[0] == 0:
+        raise KeyError("No Matching Values")
 
-    return feat_idx_names[:, 0].astype(int), feat_idx_names[:, 1]
+    feature_idxs, feature_names = feat_idx_names[:, 0].astype(int), feat_idx_names[:, 1]
+    return feature_idxs, feature_names
 
 
 def equalize_conditions(adata, obs_str, ignore_min_list=None):
