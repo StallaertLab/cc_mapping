@@ -1,0 +1,980 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>cc_mapping.core &mdash; cc_mapping 0.0.5 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=282f96c0"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            cc_mapping
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html">cc_mapping</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">cc_mapping</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">cc_mapping.core</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for cc_mapping.core</h1><div class="highlight"><pre>
+<span></span>
+<span class="kn">import</span> <span class="nn">warnings</span>
+<span class="n">warnings</span><span class="o">.</span><span class="n">simplefilter</span><span class="p">(</span><span class="n">action</span><span class="o">=</span><span class="s1">&#39;ignore&#39;</span><span class="p">,</span> <span class="n">category</span><span class="o">=</span><span class="ne">FutureWarning</span><span class="p">)</span>
+
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">from</span> <span class="nn">sklearn.preprocessing</span> <span class="kn">import</span> <span class="n">LabelEncoder</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="n">np</span><span class="o">.</span><span class="n">seterr</span><span class="p">(</span><span class="nb">all</span><span class="o">=</span><span class="s2">&quot;ignore&quot;</span><span class="p">)</span>
+<span class="kn">import</span> <span class="nn">anndata</span> <span class="k">as</span> <span class="nn">ad</span>
+<span class="kn">import</span> <span class="nn">matplotlib.patches</span> <span class="k">as</span> <span class="nn">mpatches</span>
+<span class="kn">from</span> <span class="nn">scipy</span> <span class="kn">import</span> <span class="n">stats</span> <span class="k">as</span> <span class="n">st</span>
+<span class="kn">from</span> <span class="nn">tqdm</span> <span class="kn">import</span> <span class="n">tqdm</span>
+<span class="kn">from</span> <span class="nn">sklearn</span> <span class="kn">import</span> <span class="n">svm</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="kn">import</span> <span class="n">OrderedDict</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+
+<span class="kn">from</span> <span class="nn">sklearn.mixture</span> <span class="kn">import</span> <span class="n">GaussianMixture</span> 
+
+<span class="kn">from</span> <span class="nn">sklearn</span> <span class="kn">import</span> <span class="n">metrics</span>
+<span class="kn">from</span> <span class="nn">sklearn.model_selection</span> <span class="kn">import</span> <span class="n">train_test_split</span>
+<span class="kn">from</span> <span class="nn">sklearn.ensemble</span> <span class="kn">import</span> <span class="n">RandomForestClassifier</span>
+
+<span class="kn">from</span> <span class="nn">.utils</span> <span class="kn">import</span> <span class="n">get_str_idx</span>
+<span class="kn">from</span> <span class="nn">.preprocess</span> <span class="kn">import</span> <span class="n">row_data_partitioning</span>
+
+<div class="viewcode-block" id="train_random_forest_model">
+<a class="viewcode-back" href="../../cc_mapping.html#cc_mapping.core.train_random_forest_model">[docs]</a>
+<span class="k">def</span> <span class="nf">train_random_forest_model</span><span class="p">(</span><span class="n">features</span><span class="p">,</span>
+                              <span class="n">labels</span><span class="p">,</span>
+                              <span class="n">rf_params</span><span class="p">:</span> <span class="nb">dict</span> <span class="p">,</span>
+                              <span class="n">random_state</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+                              <span class="n">train_test_split_params</span><span class="p">:</span> <span class="nb">dict</span><span class="p">,</span>
+                              <span class="n">FS_desc</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span><span class="p">,</span>
+                              <span class="n">verbose</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+                              <span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Trains a random forest model using the given features and labels.</span>
+
+<span class="sd">    Parameters:</span>
+<span class="sd">    - features: The input features for training the model.</span>
+<span class="sd">    - labels: The target labels for training the model.</span>
+<span class="sd">    - rf_params: A dictionary of parameters for the random forest classifier.</span>
+<span class="sd">    - random_state: A boolean value indicating whether to use a random state for reproducibility.</span>
+<span class="sd">    - train_test_split_params: A dictionary of parameters for the train-test split.</span>
+<span class="sd">    - verbose: A boolean value indicating whether to print the classification report.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">    - rf_classifier: The trained random forest classifier.</span>
+<span class="sd">    - accuracy: The accuracy of the model on the test set.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">train_features</span><span class="p">,</span> <span class="n">test_features</span><span class="p">,</span> <span class="n">train_labels</span><span class="p">,</span> <span class="n">test_labels</span> <span class="o">=</span> <span class="n">train_test_split</span><span class="p">(</span><span class="n">features</span><span class="p">,</span>
+                                                                                <span class="n">labels</span><span class="p">,</span>
+                                                                                <span class="n">random_state</span> <span class="o">=</span> <span class="n">random_state</span><span class="p">,</span>
+                                                                                <span class="o">**</span><span class="n">train_test_split_params</span><span class="p">)</span>
+    <span class="n">rf_classifier</span> <span class="o">=</span> <span class="n">RandomForestClassifier</span><span class="p">(</span><span class="n">random_state</span> <span class="o">=</span> <span class="n">random_state</span><span class="p">,</span> <span class="o">**</span><span class="n">rf_params</span><span class="p">)</span>
+
+    <span class="n">rf_classifier</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">train_features</span><span class="p">,</span> <span class="n">train_labels</span><span class="p">)</span>
+
+    <span class="n">rf_pred_labels</span><span class="o">=</span><span class="n">rf_classifier</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">test_features</span><span class="p">)</span>
+
+    <span class="n">accuracy</span> <span class="o">=</span> <span class="n">metrics</span><span class="o">.</span><span class="n">accuracy_score</span><span class="p">(</span><span class="n">test_labels</span><span class="p">,</span> <span class="n">rf_pred_labels</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Classification Report for RF model trained with </span><span class="si">{</span><span class="n">FS_desc</span><span class="si">}</span><span class="s1"> feature set&#39;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;##################################################################&#39;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">()</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">metrics</span><span class="o">.</span><span class="n">classification_report</span><span class="p">(</span><span class="n">test_labels</span><span class="p">,</span> <span class="n">rf_pred_labels</span><span class="p">))</span>
+
+    <span class="k">return</span> <span class="n">rf_classifier</span><span class="p">,</span> <span class="n">accuracy</span></div>
+
+
+<div class="viewcode-block" id="RF_increment_counter">
+<a class="viewcode-back" href="../../cc_mapping.html#cc_mapping.core.RF_increment_counter">[docs]</a>
+<span class="k">def</span> <span class="nf">RF_increment_counter</span><span class="p">(</span><span class="n">acc_list</span><span class="p">,</span> <span class="n">optim_feat_num</span><span class="p">,</span> <span class="n">counter</span><span class="p">,</span> <span class="n">stable_counter</span><span class="p">,</span> <span class="n">threshold</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Increment the counter based on the accuracy difference between the current feature and the previous feature.</span>
+
+<span class="sd">    Parameters:</span>
+<span class="sd">    acc_list (list): List of accuracy values.</span>
+<span class="sd">    optim_feat_num (int): Index of the current feature.</span>
+<span class="sd">    counter (int): Counter value.</span>
+<span class="sd">    stable_counter (int): Number of stable features.</span>
+<span class="sd">    threshold (float): Threshold value for accuracy difference.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">    tuple: A tuple containing the updated optim_feat_num, counter, and continue_bool values.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">trun_acc_list</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">acc_list</span><span class="p">[</span><span class="n">optim_feat_num</span><span class="p">:</span><span class="n">optim_feat_num</span><span class="o">+</span><span class="n">stable_counter</span><span class="o">+</span><span class="mi">1</span><span class="p">])</span>
+    <span class="n">acc_diff_list</span> <span class="o">=</span> <span class="n">trun_acc_list</span> <span class="o">-</span> <span class="n">acc_list</span><span class="p">[</span><span class="n">optim_feat_num</span><span class="p">]</span>
+
+    <span class="n">diff_surpass_threshold</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">acc_diff_list</span> <span class="o">&gt;</span> <span class="n">threshold</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">diff_surpass_threshold</span><span class="p">)</span><span class="o">==</span><span class="mi">0</span><span class="p">:</span>
+        <span class="n">continue_bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">counter</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">counter</span> <span class="o">-=</span> <span class="mi">1</span>
+
+        <span class="n">optim_feat_num</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">continue_bool</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">return</span> <span class="n">optim_feat_num</span><span class="p">,</span> <span class="n">counter</span> <span class="p">,</span> <span class="n">continue_bool</span></div>
+
+
+<div class="viewcode-block" id="random_forest_feature_selection">
+<a class="viewcode-back" href="../../cc_mapping.html#cc_mapping.core.random_forest_feature_selection">[docs]</a>
+<span class="k">def</span> <span class="nf">random_forest_feature_selection</span><span class="p">(</span><span class="n">adata</span><span class="p">:</span> <span class="n">ad</span><span class="o">.</span><span class="n">AnnData</span><span class="p">,</span>
+                                    <span class="n">training_feature_set</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+                                    <span class="n">training_labels</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+                                    <span class="n">feature_set_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                                    <span class="n">method</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;RF_min_max&#39;</span><span class="p">,</span>
+                                    <span class="n">random_state</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">42</span><span class="p">,</span>
+                                    <span class="n">threshold</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.01</span><span class="p">,</span>
+                                    <span class="n">stable_counter</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">3</span><span class="p">,</span>
+                                    <span class="n">plot</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+                                    <span class="n">verbose</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+                                    <span class="n">save_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                                    <span class="n">cutoff_method</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;increment&#39;</span><span class="p">,</span>
+                                    <span class="n">train_test_split_params</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;test_size&#39;</span><span class="p">:</span><span class="mf">0.25</span><span class="p">},</span>
+                                    <span class="n">rf_params</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;min_samples_leaf&#39;</span><span class="p">:</span><span class="mi">50</span><span class="p">,</span>
+                                                        <span class="s1">&#39;n_estimators&#39;</span><span class="p">:</span><span class="mi">150</span><span class="p">,</span>
+                                                        <span class="s1">&#39;bootstrap&#39;</span><span class="p">:</span><span class="kc">True</span><span class="p">,</span>
+                                                        <span class="s1">&#39;oob_score&#39;</span><span class="p">:</span><span class="kc">True</span><span class="p">,</span>
+                                                        <span class="s1">&#39;n_jobs&#39;</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="p">},</span>
+                                    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ad</span><span class="o">.</span><span class="n">AnnData</span><span class="p">:</span>
+<span class="w">                                    </span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Trains a random forest classifier on the training feature set and labels using one of two methods:</span>
+<span class="sd">    RF_min_30: Selects the top 30 features based on the random forest feature importance</span>
+<span class="sd">    RF_min_max: Selects the minimum number of features that maximizes the accuracy of the random forest classifier</span>
+<span class="sd">    This is done by iteratively adding features to the feature set until the accuracy of the classifier</span>
+<span class="sd">    does not improve for x number of iterations</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        adata (ad.AnnData): The AnnData object containing the data.</span>
+<span class="sd">        training_feature_set (str): The name of the feature set to be used for training.</span>
+<span class="sd">        training_labels (str): The name of the labels to be used for training.</span>
+<span class="sd">        feature_set_name (str, optional): The name of the feature set to be added to the .var attribute of the adata object. Defaults to None.</span>
+<span class="sd">        method (str, optional): The method to be used for feature selection. Defaults to &#39;RF_min_max&#39;.</span>
+<span class="sd">        random_state (int, optional): The random state for reproducibility. Defaults to 42.</span>
+<span class="sd">        threshold (float, optional): The threshold for determining when to stop adding features. Defaults to 0.01.</span>
+<span class="sd">        stable_counter (int, optional): The number of stable iterations before stopping. Defaults to 3.</span>
+<span class="sd">        plot (bool, optional): Whether to plot the accuracy vs. number of features graph. Defaults to True.</span>
+<span class="sd">        cutoff_method (str, optional): The method for determining when to stop adding features. Defaults to &#39;increment&#39;.</span>
+<span class="sd">        train_test_split_params (dict, optional): The parameters for train test split. Defaults to {&#39;test_size&#39;:0.25}.</span>
+<span class="sd">        rf_params (dict, optional): The parameters for the random forest classifier. Defaults to {&#39;min_samples_leaf&#39;:50, &#39;n_estimators&#39;:150, &#39;bootstrap&#39;:True, &#39;oob_score&#39;:True, &#39;n_jobs&#39;:-1}.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        ad.AnnData: The adata object with the feature set added to the .var attribute.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="n">feature_set_name</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">feature_set_name</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">method</span><span class="si">}</span><span class="s1">_feature_set&#39;</span>
+
+    <span class="c1"># Get the indices of the features in the training feature set</span>
+    <span class="n">feature_set_idxs</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">get_str_idx</span><span class="p">(</span><span class="n">training_feature_set</span><span class="p">,</span> <span class="n">adata</span><span class="o">.</span><span class="n">var_names</span><span class="o">.</span><span class="n">values</span><span class="p">)</span>
+
+    <span class="c1">#remove the nan values from the feature set</span>
+    <span class="c1">#TODO: I need to make this more generalizable because there are other forms of nan in the data</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">phase_nan_idx</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">get_str_idx</span><span class="p">(</span><span class="s1">&#39;nan&#39;</span><span class="p">,</span> <span class="n">adata</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="n">training_labels</span><span class="p">])</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="n">phase_nan_idx</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="c1">#isolates the feature set from the adata object</span>
+    <span class="n">feature_set</span> <span class="o">=</span> <span class="n">adata</span><span class="o">.</span><span class="n">X</span><span class="p">[:,</span><span class="n">feature_set_idxs</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+    <span class="c1">#removes the nan values from the feature set and labels</span>
+    <span class="n">feature_set</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="n">feature_set</span><span class="p">,</span> <span class="n">phase_nan_idx</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">labels</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="n">adata</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="n">training_labels</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span> <span class="n">phase_nan_idx</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+    <span class="c1">#remove the inf values from the feature set</span>
+    <span class="n">feature_set</span><span class="p">[</span><span class="n">feature_set</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+    <span class="n">feature_set</span><span class="p">[</span><span class="n">feature_set</span> <span class="o">==</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">nan</span>
+    <span class="n">nan_data_idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">isnan</span><span class="p">(</span><span class="n">feature_set</span><span class="p">)</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+    <span class="n">feature_set</span> <span class="o">=</span> <span class="n">feature_set</span><span class="p">[</span><span class="o">~</span><span class="n">nan_data_idx</span><span class="p">]</span>
+    <span class="n">labels</span> <span class="o">=</span> <span class="n">labels</span><span class="p">[</span><span class="o">~</span><span class="n">nan_data_idx</span><span class="p">]</span>
+
+    <span class="c1">#train the random forest model on all the features to get the feature importances</span>
+    <span class="n">rf_classifier</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">train_random_forest_model</span><span class="p">(</span><span class="n">features</span> <span class="o">=</span> <span class="n">feature_set</span><span class="p">,</span>
+                                                 <span class="n">labels</span> <span class="o">=</span> <span class="n">labels</span><span class="p">,</span>
+                                                 <span class="n">rf_params</span> <span class="o">=</span> <span class="n">rf_params</span><span class="p">,</span>
+                                                 <span class="n">train_test_split_params</span><span class="o">=</span><span class="n">train_test_split_params</span><span class="p">,</span>
+                                                 <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">,</span>
+                                                 <span class="n">FS_desc</span><span class="o">=</span><span class="s1">&#39;intial&#39;</span><span class="p">,</span>
+                                                 <span class="n">random_state</span><span class="o">=</span><span class="n">random_state</span><span class="p">)</span>
+        
+    <span class="c1">#negative to have it sort from highest to lowest</span>
+    <span class="n">sorted_idxs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="o">-</span><span class="n">rf_classifier</span><span class="o">.</span><span class="n">feature_importances_</span><span class="p">)</span>
+    <span class="n">sorted_feature_set</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">training_feature_set</span><span class="p">)[</span><span class="n">sorted_idxs</span><span class="p">]</span>
+    <span class="n">sorted_features</span> <span class="o">=</span> <span class="n">feature_set</span><span class="p">[:,</span><span class="n">sorted_idxs</span><span class="p">]</span>
+
+    <span class="c1">#if the method is RF_min_30, then the optimal feature set is the top 30 features</span>
+    <span class="c1">#this works with any number of features</span>
+    <span class="k">if</span> <span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="s1">&#39;(?&lt;=RF_min_)[0-9]+&#39;</span><span class="p">,</span><span class="n">method</span><span class="p">):</span>
+        <span class="n">optim_feat_num</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="s1">&#39;(?&lt;=RF_min_)[0-9]+&#39;</span><span class="p">,</span><span class="n">method</span><span class="p">)</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span>
+        <span class="n">optim_RF_feature_set</span> <span class="o">=</span> <span class="n">sorted_feature_set</span><span class="p">[:</span><span class="n">optim_feat_num</span><span class="p">]</span>
+        
+    <span class="k">elif</span> <span class="n">method</span> <span class="o">==</span> <span class="s1">&#39;RF_min_max&#39;</span><span class="p">:</span>
+
+        <span class="n">counter</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">max_acc_arg</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">acc_list</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">num_feats</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">sorted_features</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">+</span><span class="mi">1</span><span class="p">),</span><span class="n">total</span><span class="o">=</span> <span class="n">sorted_features</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+                              <span class="n">desc</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;Training RF model iteratively using most important RF features until </span><span class="si">{</span><span class="n">stable_counter</span><span class="si">}</span><span class="s1"> stable iterations&#39;</span><span class="p">,</span> <span class="n">disable</span><span class="o">=</span> <span class="ow">not</span> <span class="n">verbose</span><span class="p">):</span>
+
+            <span class="k">if</span> <span class="n">counter</span> <span class="o">&gt;</span> <span class="n">stable_counter</span><span class="p">:</span>
+                <span class="k">break</span>
+
+            <span class="c1">#truncates the feature set to the current number of features</span>
+            <span class="n">trunc_feature_set</span> <span class="o">=</span> <span class="n">sorted_features</span><span class="p">[:,:</span><span class="n">num_feats</span><span class="p">]</span>
+
+            <span class="c1">#trains the random forest model on the truncated feature set</span>
+            <span class="n">_</span> <span class="p">,</span> <span class="n">accuracy</span> <span class="o">=</span> <span class="n">train_random_forest_model</span><span class="p">(</span><span class="n">features</span> <span class="o">=</span> <span class="n">trunc_feature_set</span><span class="p">,</span>
+                                                        <span class="n">labels</span> <span class="o">=</span> <span class="n">labels</span><span class="p">,</span>
+                                                        <span class="n">rf_params</span> <span class="o">=</span> <span class="n">rf_params</span><span class="p">,</span>
+                                                        <span class="n">train_test_split_params</span><span class="o">=</span><span class="n">train_test_split_params</span><span class="p">,</span>
+                                                        <span class="n">random_state</span><span class="o">=</span><span class="n">random_state</span><span class="p">,</span>
+                                                        <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="n">acc_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">accuracy</span><span class="p">)</span>
+
+            <span class="c1">#calulate the difference between the current accuracy and the maximum accuracy determined before this iteration</span>
+            <span class="n">acc_difference</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">acc_list</span><span class="p">[</span><span class="n">max_acc_arg</span><span class="p">]</span> <span class="o">-</span> <span class="n">accuracy</span><span class="p">)</span>
+
+            <span class="c1">#if the maximum accuracy is the same as the current accuracy, pass on</span>
+            <span class="k">if</span> <span class="n">max_acc_arg</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">acc_list</span><span class="p">):</span>
+                <span class="k">pass</span>
+
+            <span class="c1"># if the difference between the current accuracy and the maximum accuracy is greater than the threshold</span>
+            <span class="c1"># and the number of features is greater than 1 (to avoid the 0th index in the accuracy list)</span>
+            <span class="c1">#elif acc_difference &gt; threshold and num_feats &gt; 1:</span>
+            <span class="k">elif</span> <span class="n">acc_difference</span> <span class="o">&gt;</span> <span class="n">threshold</span><span class="p">:</span>
+
+                <span class="c1">#if the cuttoff method is jump, then if the difference is greater than the threshold,</span>
+                <span class="c1">#then set the maximum accuracy argument to the current number of features and reset counter</span>
+                <span class="k">if</span> <span class="n">cutoff_method</span> <span class="o">==</span> <span class="s1">&#39;jump&#39;</span><span class="p">:</span>
+                    <span class="n">max_acc_arg</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">acc_list</span><span class="p">)</span>
+                    <span class="n">counter</span> <span class="o">=</span> <span class="mi">0</span>
+
+                <span class="c1">#if the cuttoff method is increment, then if the difference is greater than the threshold,</span>
+                <span class="c1">#then the optimal number of features is increased by 1 and the check occurs again until the condition is not met</span>
+                <span class="c1">#when the acc_diccerece is less than the threshold, the counter also decreased by 1 </span>
+                <span class="k">elif</span> <span class="n">cutoff_method</span> <span class="o">==</span> <span class="s1">&#39;increment&#39;</span><span class="p">:</span>
+
+                    <span class="n">temp_max_acc_arg</span><span class="p">,</span> <span class="n">temp_counter</span> <span class="o">=</span> <span class="n">max_acc_arg</span><span class="p">,</span> <span class="n">counter</span>
+                    <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">stable_counter</span><span class="p">):</span>
+                        <span class="n">temp_max_acc_arg</span><span class="p">,</span> <span class="n">temp_counter</span><span class="p">,</span> <span class="n">continue_bool</span> <span class="o">=</span> <span class="n">RF_increment_counter</span><span class="p">(</span><span class="n">acc_list</span><span class="p">,</span> <span class="n">temp_max_acc_arg</span><span class="p">,</span> <span class="n">temp_counter</span><span class="p">,</span> <span class="n">stable_counter</span><span class="p">,</span> <span class="n">threshold</span><span class="p">)</span>
+
+                        <span class="k">if</span> <span class="ow">not</span> <span class="n">continue_bool</span><span class="p">:</span>
+                            <span class="k">break</span>
+
+                    <span class="k">if</span> <span class="p">(</span><span class="n">temp_max_acc_arg</span><span class="p">,</span> <span class="n">temp_counter</span><span class="p">)</span> <span class="o">!=</span> <span class="p">(</span><span class="n">max_acc_arg</span><span class="p">,</span> <span class="n">counter</span><span class="p">):</span>
+                        <span class="n">max_acc_arg</span> <span class="o">=</span> <span class="n">temp_max_acc_arg</span>
+                        <span class="n">counter</span> <span class="o">=</span> <span class="n">temp_counter</span>
+
+            <span class="n">counter</span> <span class="o">+=</span> <span class="mi">1</span>
+
+        <span class="n">acc_list</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">acc_list</span><span class="p">)</span>
+        <span class="n">optim_feat_num</span> <span class="o">=</span> <span class="n">max_acc_arg</span> 
+
+    <span class="n">optim_RF_feature_set</span> <span class="o">=</span> <span class="n">sorted_feature_set</span><span class="p">[:</span><span class="n">optim_feat_num</span><span class="p">]</span>
+
+    <span class="n">optim_feature_set</span> <span class="o">=</span> <span class="n">sorted_features</span><span class="p">[:,:</span><span class="n">optim_feat_num</span><span class="p">]</span>
+
+    <span class="c1">#train the random forest model on the optimal feature set for output performance metrics</span>
+    <span class="n">_</span> <span class="o">=</span> <span class="n">train_random_forest_model</span><span class="p">(</span><span class="n">features</span> <span class="o">=</span> <span class="n">optim_feature_set</span><span class="p">,</span>
+                                    <span class="n">labels</span> <span class="o">=</span> <span class="n">labels</span><span class="p">,</span>
+                                    <span class="n">rf_params</span> <span class="o">=</span> <span class="n">rf_params</span><span class="p">,</span>
+                                    <span class="n">train_test_split_params</span><span class="o">=</span><span class="n">train_test_split_params</span><span class="p">,</span>
+                                    <span class="n">verbose</span><span class="o">=</span><span class="n">verbose</span><span class="p">,</span>
+                                    <span class="n">FS_desc</span><span class="o">=</span><span class="s1">&#39;optimal&#39;</span><span class="p">,</span>
+                                    <span class="n">random_state</span><span class="o">=</span><span class="n">random_state</span><span class="p">,)</span>
+
+    <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">()</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;##################################################################################&#39;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">()</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Optimal Feature Set sorted by RF feature importance&#39;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;###################################################&#39;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">optim_RF_feature_set</span><span class="p">)</span>
+
+    <span class="c1">#converts the optimal feature set to a boolean array</span>
+    <span class="n">feat_idxs</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">get_str_idx</span><span class="p">(</span><span class="n">optim_RF_feature_set</span><span class="p">,</span> <span class="n">adata</span><span class="o">.</span><span class="n">var_names</span><span class="o">.</span><span class="n">values</span><span class="p">)</span>
+    <span class="n">fs_bool</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="kc">False</span><span class="p">,</span> <span class="n">adata</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+    <span class="n">fs_bool</span><span class="p">[</span><span class="n">feat_idxs</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="n">adata</span><span class="o">.</span><span class="n">var</span><span class="p">[</span><span class="n">feature_set_name</span><span class="p">]</span> <span class="o">=</span> <span class="n">fs_bool</span>
+
+    <span class="k">if</span> <span class="n">plot</span> <span class="ow">and</span> <span class="n">method</span> <span class="o">==</span> <span class="s1">&#39;RF_min_max&#39;</span><span class="p">:</span>
+        <span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span><span class="mi">5</span><span class="p">))</span>
+
+        <span class="n">x_axis</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span> <span class="nb">len</span><span class="p">(</span><span class="n">acc_list</span><span class="p">),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">x_axis</span><span class="p">,</span> <span class="n">acc_list</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">axvline</span><span class="p">(</span><span class="n">optim_feat_num</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;r&#39;</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">&#39;--&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="sa">f</span><span class="s1">&#39;Optimal Feature Set Size: </span><span class="si">{</span><span class="n">optim_feat_num</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;Stable Counter </span><span class="si">{</span><span class="n">stable_counter</span><span class="si">}</span><span class="s1"> - Stable Threshold </span><span class="si">{</span><span class="n">threshold</span><span class="o">*</span><span class="mi">100</span><span class="si">}</span><span class="s1">% - Cutoff Method: </span><span class="si">{</span><span class="n">cutoff_method</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">xticks</span><span class="p">(</span><span class="n">x_axis</span><span class="p">)</span>
+
+        <span class="n">percentages</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">110</span><span class="p">,</span><span class="mi">10</span><span class="p">,</span><span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+        <span class="n">rounded_percentages</span> <span class="o">=</span>  <span class="p">[</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">elem</span><span class="si">}</span><span class="s1"> %&#39;</span> <span class="k">for</span> <span class="n">elem</span> <span class="ow">in</span> <span class="n">percentages</span> <span class="p">]</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="n">visible</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span> <span class="n">alpha</span> <span class="o">=</span> <span class="mf">0.5</span><span class="p">,</span> <span class="n">linestyle</span> <span class="o">=</span> <span class="s1">&#39;--&#39;</span><span class="p">,</span> <span class="n">which</span> <span class="o">=</span> <span class="s1">&#39;both&#39;</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">yticks</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mf">1.1</span><span class="p">,</span><span class="mf">0.1</span><span class="p">),</span> <span class="n">rounded_percentages</span><span class="p">)</span>
+        
+        <span class="n">xtick_labels</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">insert</span><span class="p">(</span><span class="n">sorted_feature_set</span><span class="p">[:</span><span class="nb">len</span><span class="p">(</span><span class="n">acc_list</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">],</span> <span class="mi">0</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">xticks</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">acc_list</span><span class="p">)),</span><span class="n">xtick_labels</span><span class="p">,</span> <span class="n">rotation</span> <span class="o">=</span> <span class="mi">45</span><span class="p">,</span> <span class="n">ha</span> <span class="o">=</span> <span class="s1">&#39;right&#39;</span><span class="p">,</span> <span class="n">fontsize</span> <span class="o">=</span> <span class="mi">8</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s1">&#39;Accuracy&#39;</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">xlim</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">acc_list</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">ylim</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mf">1.05</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">loc</span><span class="o">=</span><span class="s1">&#39;lower right&#39;</span><span class="p">)</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">save_path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="n">save_path</span><span class="p">)</span>
+
+        <span class="n">plt</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+    <span class="k">return</span> <span class="n">adata</span></div>
+
+
+<div class="viewcode-block" id="GMM_CC_phase_prediction">
+<a class="viewcode-back" href="../../cc_mapping.html#cc_mapping.core.GMM_CC_phase_prediction">[docs]</a>
+<span class="k">class</span> <span class="nc">GMM_CC_phase_prediction</span><span class="p">():</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Class for performing GMM-based phase prediction in single-cell RNA-seq data.</span>
+
+<span class="sd">    Parameters:</span>
+<span class="sd">    - adata: Anndata object containing the single-cell RNA-seq data.</span>
+<span class="sd">    - GMM_obs_label: String, the name of the observation column to store the GMM phase labels.</span>
+<span class="sd">    - GMM_kwargs: Dictionary, additional keyword arguments for the GaussianMixture model.</span>
+
+<span class="sd">    Methods:</span>
+<span class="sd">    - row_data_partitioning: Partition the data based on a search term and phase observation label.</span>
+<span class="sd">    - define_gene_adata: Define the Anndata object for a specific gene, with or without row data partitioning.</span>
+<span class="sd">    - fit_GMM: Fit a GaussianMixture model to a specific gene and assign phase labels.</span>
+<span class="sd">    - compare_GMM_labels: Compare phase labels between two GMM sets and assign new labels.</span>
+<span class="sd">    - define_GMM_compare_parameters: Define parameters for comparing GMM sets.</span>
+<span class="sd">    - plot_GMM: Plot the GaussianMixture model and the linear decision boundaries.</span>
+<span class="sd">    - plot_linear_decision_boundaries: Plot the linear decision boundaries for a specific gene.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                 <span class="n">adata</span><span class="p">,</span>
+                 <span class="n">GMM_obs_label</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s1">&#39;GMM_phase_labels&#39;</span><span class="p">,</span>
+                 <span class="n">GMM_kwargs</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,):</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">adata</span> <span class="o">=</span> <span class="n">adata</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">default_label</span> <span class="o">=</span> <span class="s1">&#39;NA&#39;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">GMM_obs_label</span> <span class="o">=</span> <span class="n">GMM_obs_label</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">GMM_obs_label</span> <span class="ow">in</span> <span class="n">adata</span><span class="o">.</span><span class="n">obs</span><span class="o">.</span><span class="n">columns</span><span class="p">:</span>
+            <span class="k">del</span> <span class="bp">self</span><span class="o">.</span><span class="n">adata</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">GMM_obs_label</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">GMM_kwargs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">GMM_kwargs</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">GMM_kwargs</span> <span class="o">=</span> <span class="n">GMM_kwargs</span>
+
+        <span class="k">if</span> <span class="s1">&#39;random_state&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">GMM_kwargs</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;The random_state parameter is required for reproducibility.&#39;</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">cc_phase_info_dict</span> <span class="o">=</span> <span class="p">{}</span>
+
+<div class="viewcode-block" id="GMM_CC_phase_prediction.row_data_partitioning">
+<a class="viewcode-back" href="../../cc_mapping.html#cc_mapping.core.GMM_CC_phase_prediction.row_data_partitioning">[docs]</a>
+    <span class="k">def</span> <span class="nf">row_data_partitioning</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                                  <span class="n">GMM_set_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+                                  <span class="n">obs_search_term</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                                  <span class="n">GMM_set_name_to_partition</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                                  <span class="n">phase_obs_label</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">            Partition the row data based on the given parameters.</span>
+
+<span class="sd">            Parameters:</span>
+<span class="sd">            - GMM_set_name (str): The name of the GMM set.</span>
+<span class="sd">            - obs_search_term (str): The search term for selecting observations.</span>
+<span class="sd">            - GMM_set_name_to_partition (str, optional): The name of the GMM set to partition. Defaults to None.</span>
+<span class="sd">            - phase_obs_label (str, optional): The label for phase observations. Defaults to None.</span>
+
+<span class="sd">            Returns:</span>
+<span class="sd">            None</span>
+<span class="sd">            &quot;&quot;&quot;</span>
+            <span class="k">if</span> <span class="n">phase_obs_label</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">phase_obs_label</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">GMM_obs_label</span>
+
+            <span class="k">if</span> <span class="n">obs_search_term</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">obs_search_term</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_label</span>
+
+            <span class="k">if</span> <span class="n">GMM_set_name_to_partition</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">trunc_adata</span> <span class="o">=</span> <span class="n">preprocess</span><span class="o">.</span><span class="n">row_data_partitioning</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">adata</span><span class="p">,</span> <span class="n">obs_search_term</span><span class="p">,</span> <span class="n">phase_obs_label</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">gene_adata</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cc_phase_info_dict</span><span class="p">[</span><span class="n">GMM_set_name_to_partition</span><span class="p">][</span><span class="s1">&#39;gene_adata&#39;</span><span class="p">]</span>
+
+                <span class="n">gene_adata</span> <span class="o">=</span> <span class="n">row_data_partitioning</span><span class="p">(</span><span class="n">gene_adata</span><span class="p">,</span> <span class="n">obs_search_term</span><span class="p">,</span> <span class="n">phase_obs_label</span><span class="p">)</span>
+                <span class="n">cell_ids</span> <span class="o">=</span> <span class="n">gene_adata</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="s1">&#39;CellID&#39;</span><span class="p">]</span>
+
+                <span class="n">trunc_adata</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">adata</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">adata</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="s1">&#39;CellID&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">isin</span><span class="p">(</span><span class="n">cell_ids</span><span class="p">)]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">cc_phase_info_dict</span><span class="p">[</span><span class="n">GMM_set_name</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">cc_phase_info_dict</span><span class="p">[</span><span class="n">GMM_set_name</span><span class="p">][</span><span class="s1">&#39;trunc_adata&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">trunc_adata</span></div>
+
+
+<div class="viewcode-block" id="GMM_CC_phase_prediction.define_gene_adata">
+<a class="viewcode-back" href="../../cc_mapping.html#cc_mapping.core.GMM_CC_phase_prediction.define_gene_adata">[docs]</a>
+    <span class="k">def</span> <span class="nf">define_gene_adata</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                              <span class="n">gene</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+                              <span class="n">row_data_partitioning</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+                              <span class="n">GMM_set_name</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">            Returns a subset of the AnnData object containing the expression data for a specific gene.</span>
+
+<span class="sd">            Parameters:</span>
+<span class="sd">                gene (str): The name of the gene.</span>
+<span class="sd">                row_data_partitioning (bool, optional): If True, returns a subset of the AnnData object based on row data partitioning. Defaults to False.</span>
+<span class="sd">                GMM_set_name (bool, optional): The name of the GMM set. Required if row_data_partitioning is True. Defaults to None.</span>
+
+<span class="sd">            Returns:</span>
+<span class="sd">                AnnData: A subset of the AnnData object containing the expression data for the specified gene.</span>
+<span class="sd">            &quot;&quot;&quot;</span>
+
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">row_data_partitioning</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">adata</span><span class="p">[:,</span> <span class="n">gene</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">trunc_adata</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cc_phase_info_dict</span><span class="p">[</span><span class="n">GMM_set_name</span><span class="p">][</span><span class="s1">&#39;trunc_adata&#39;</span><span class="p">]</span>
+                <span class="k">return</span> <span class="n">trunc_adata</span><span class="p">[:,</span> <span class="n">gene</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="GMM_CC_phase_prediction.fit_GMM">
+<a class="viewcode-back" href="../../cc_mapping.html#cc_mapping.core.GMM_CC_phase_prediction.fit_GMM">[docs]</a>
+    <span class="k">def</span> <span class="nf">fit_GMM</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                    <span class="n">gene</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+                    <span class="n">ordered_GMM_labels</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span>
+                    <span class="n">n_components</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                    <span class="n">GMM_set_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                    <span class="n">GMM_kwargs</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                    <span class="n">duplicate_labels</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+                    <span class="n">row_data_partitioning</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,):</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">            Fits a Gaussian Mixture Model (GMM) to the gene expression data for a specific gene.</span>
+
+<span class="sd">            Args:</span>
+<span class="sd">                gene (str): The name of the gene.</span>
+<span class="sd">                ordered_GMM_labels (list): The ordered labels for the GMM components.</span>
+<span class="sd">                random_state (int, optional): The random seed for reproducibility. Defaults to 0.</span>
+<span class="sd">                n_components (int, optional): The number of components in the GMM. Defaults to None.</span>
+<span class="sd">                GMM_set_name (str, optional): The name of the GMM set. Defaults to None.</span>
+<span class="sd">                row_data_partitioning (bool, optional): Whether to perform row data partitioning. Defaults to False.</span>
+
+<span class="sd">            Returns:</span>
+<span class="sd">                None</span>
+<span class="sd">            &quot;&quot;&quot;</span>
+            <span class="n">gene_adata</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">define_gene_adata</span><span class="p">(</span><span class="n">gene</span><span class="p">,</span> <span class="n">row_data_partitioning</span><span class="p">,</span> <span class="n">GMM_set_name</span><span class="p">)</span>
+
+            <span class="n">x</span> <span class="o">=</span> <span class="n">gene_adata</span><span class="o">.</span><span class="n">X</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+            <span class="k">if</span> <span class="n">GMM_kwargs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">GMM_kwargs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">GMM_kwargs</span>
+
+            <span class="n">GM</span> <span class="o">=</span> <span class="n">GaussianMixture</span><span class="p">(</span><span class="n">n_components</span><span class="o">=</span><span class="n">n_components</span><span class="p">,</span> <span class="o">**</span><span class="n">GMM_kwargs</span><span class="p">)</span>
+
+            <span class="n">means</span> <span class="o">=</span> <span class="n">GM</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">means_</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span>
+            <span class="n">covs</span> <span class="o">=</span> <span class="n">GM</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">covariances_</span><span class="o">.</span><span class="n">squeeze</span><span class="p">()</span>
+            <span class="n">weights</span> <span class="o">=</span> <span class="n">GM</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">weights_</span>
+            <span class="n">data_probs</span> <span class="o">=</span> <span class="n">GM</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">.</span><span class="n">predict_proba</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+
+            <span class="n">mean_argsort_idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">means</span><span class="p">)</span>
+
+            <span class="n">GMM_dict</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;means&#39;</span><span class="p">:</span> <span class="n">means</span><span class="p">[</span><span class="n">mean_argsort_idx</span><span class="p">],</span>
+                        <span class="s1">&#39;covs&#39;</span><span class="p">:</span> <span class="n">covs</span><span class="p">[</span><span class="n">mean_argsort_idx</span><span class="p">],</span>
+                        <span class="s1">&#39;weights&#39;</span><span class="p">:</span> <span class="n">weights</span><span class="p">[</span><span class="n">mean_argsort_idx</span><span class="p">],</span>
+                        <span class="s1">&#39;data_probs&#39;</span><span class="p">:</span> <span class="n">data_probs</span><span class="p">[:,</span><span class="n">mean_argsort_idx</span><span class="p">],</span>
+                        <span class="s1">&#39;n_components&#39;</span><span class="p">:</span> <span class="n">n_components</span><span class="p">}</span>
+
+            <span class="n">data_probs</span> <span class="o">=</span> <span class="n">GMM_dict</span><span class="p">[</span><span class="s1">&#39;data_probs&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">ordered_GMM_labels</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">ordered_GMM_labels</span><span class="p">)):</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">duplicate_labels</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;The ordered GMM labels contain duplicate values. Please ensure that the labels are unique or set duplicate_labels to True.&#39;</span><span class="p">)</span>
+
+                <span class="n">dup_labels_list</span> <span class="o">=</span> <span class="nb">set</span><span class="p">([</span><span class="n">label</span> <span class="k">for</span> <span class="n">label</span> <span class="ow">in</span> <span class="n">ordered_GMM_labels</span> <span class="k">if</span> <span class="n">ordered_GMM_labels</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="n">label</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">])</span>
+
+
+                <span class="n">temp_data_probs</span> <span class="o">=</span> <span class="n">data_probs</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+                <span class="n">label_idxs_to_keep</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="kc">True</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">ordered_GMM_labels</span><span class="p">))</span>
+                <span class="n">cols_to_delete</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="k">for</span> <span class="n">dup_label</span> <span class="ow">in</span> <span class="n">dup_labels_list</span><span class="p">:</span>
+                    <span class="n">dup_idxs</span> <span class="o">=</span> <span class="p">[</span><span class="n">idx</span> <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">label</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">ordered_GMM_labels</span><span class="p">)</span> <span class="k">if</span> <span class="n">label</span> <span class="o">==</span> <span class="n">dup_label</span><span class="p">]</span>
+                    <span class="n">dup_data_probs</span> <span class="o">=</span> <span class="n">temp_data_probs</span><span class="o">.</span><span class="n">copy</span><span class="p">()[:,</span> <span class="n">dup_idxs</span><span class="p">]</span>
+
+                    <span class="n">max_dup_data_probs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">dup_data_probs</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+                    <span class="n">temp_data_probs</span><span class="p">[:,</span><span class="n">dup_idxs</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span> <span class="o">=</span> <span class="n">max_dup_data_probs</span>
+                    <span class="n">cols_to_delete</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">dup_idxs</span><span class="p">[</span><span class="mi">1</span><span class="p">:])</span>
+
+                    <span class="n">label_idxs_to_keep</span><span class="p">[</span><span class="n">dup_idxs</span><span class="p">[</span><span class="mi">1</span><span class="p">:]]</span> <span class="o">=</span> <span class="kc">False</span>
+
+                <span class="n">temp_data_probs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">delete</span><span class="p">(</span><span class="n">temp_data_probs</span><span class="p">,</span> <span class="n">cols_to_delete</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+                <span class="n">condensed_labels</span> <span class="o">=</span>  <span class="p">[</span><span class="n">label</span> <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">label</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">ordered_GMM_labels</span><span class="p">)</span> <span class="k">if</span> <span class="n">label_idxs_to_keep</span><span class="p">[</span><span class="n">idx</span><span class="p">]]</span>
+
+                <span class="n">data_probs</span> <span class="o">=</span> <span class="n">temp_data_probs</span>
+
+            <span class="n">argmax_data_probs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">data_probs</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">duplicate_labels</span><span class="p">:</span>
+                <span class="n">phase_labels</span> <span class="o">=</span> <span class="p">[</span><span class="n">condensed_labels</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">argmax_data_probs</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">phase_labels</span> <span class="o">=</span> <span class="p">[</span><span class="n">ordered_GMM_labels</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">argmax_data_probs</span><span class="p">]</span>
+
+            <span class="n">gene_adata</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">GMM_obs_label</span><span class="p">]</span> <span class="o">=</span> <span class="n">phase_labels</span>
+
+            <span class="k">if</span> <span class="n">GMM_set_name</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">GMM_set_name</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cc_phase_info_dict</span><span class="o">.</span><span class="n">keys</span><span class="p">()))</span>
+
+            <span class="n">gene_adata</span><span class="o">.</span><span class="n">uns</span><span class="p">[</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">gene</span><span class="si">}</span><span class="s1">_GMM_dict&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">GMM_dict</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">cc_phase_info_dict</span><span class="p">[</span><span class="n">GMM_set_name</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;gene&#39;</span><span class="p">:</span><span class="n">gene</span><span class="p">,</span>
+                                                     <span class="s1">&#39;gene_adata&#39;</span><span class="p">:</span><span class="n">gene_adata</span><span class="p">,</span>
+                                                     <span class="s1">&#39;n_components&#39;</span><span class="p">:</span><span class="n">n_components</span><span class="p">,</span>
+                                                     <span class="s1">&#39;ordered_GMM_labels&#39;</span><span class="p">:</span><span class="n">ordered_GMM_labels</span><span class="p">,</span>
+                                                     <span class="s1">&#39;row_data_partitioning&#39;</span><span class="p">:</span><span class="n">row_data_partitioning</span><span class="p">,</span>
+                                                     <span class="s1">&#39;duplicate_labels&#39;</span><span class="p">:</span><span class="n">duplicate_labels</span><span class="p">}</span>
+
+            <span class="k">if</span> <span class="n">duplicate_labels</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">cc_phase_info_dict</span><span class="p">[</span><span class="n">GMM_set_name</span><span class="p">][</span><span class="s1">&#39;condensed_labels&#39;</span><span class="p">]</span> <span class="o">=</span>  <span class="n">condensed_labels</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">cc_phase_info_dict</span><span class="p">[</span><span class="n">GMM_set_name</span><span class="p">][</span><span class="s1">&#39;condensed_data_probs&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">temp_data_probs</span></div>
+
+
+    <span class="c1">#labels for the GMM set names lave two labels, one with ~ and one without (ie. G0/~G0)</span>
+<div class="viewcode-block" id="GMM_CC_phase_prediction.compare_GMM_labels">
+<a class="viewcode-back" href="../../cc_mapping.html#cc_mapping.core.GMM_CC_phase_prediction.compare_GMM_labels">[docs]</a>
+    <span class="k">def</span> <span class="nf">compare_GMM_labels</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> 
+                                <span class="n">GMM_set_name_list</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span>
+                                <span class="n">GMM_set_save_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">            Compare the GMM labels for two sets and update the gene_adata object with the results.</span>
+
+<span class="sd">            Parameters:</span>
+<span class="sd">            - GMM_set_name_list (list): A list of two GMM set names to compare.</span>
+<span class="sd">            - GMM_set_save_name (str): The name to save the GMM set comparison results.</span>
+
+<span class="sd">            Returns:</span>
+<span class="sd">            None</span>
+<span class="sd">            &quot;&quot;&quot;</span>
+            <span class="n">c1_label</span> <span class="o">=</span> <span class="n">GMM_set_name_list</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">c2_label</span> <span class="o">=</span> <span class="n">GMM_set_name_list</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+            <span class="n">adata_size_list</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">GMM_set_name_list</span><span class="p">:</span>
+                <span class="n">c_phase_dict</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cc_phase_info_dict</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+                <span class="n">adata_size_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">c_phase_dict</span><span class="p">[</span><span class="sa">f</span><span class="s1">&#39;gene_adata&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            
+            <span class="k">if</span> <span class="n">adata_size_list</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="n">adata_size_list</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;The two GMM sets have different number of cells. Please ensure that the GMM sets have the same number of cells.&#39;</span><span class="p">)</span> 
+
+            <span class="n">genes</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">cc_phase_info_dict</span><span class="p">[</span><span class="n">key</span><span class="p">][</span><span class="s1">&#39;gene&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">GMM_set_name_list</span><span class="p">]</span>
+
+            <span class="n">compare_dict</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">define_GMM_compare_parameters</span><span class="p">(</span><span class="n">GMM_set_name_list</span><span class="p">)</span>
+
+            <span class="n">labels</span> <span class="o">=</span> <span class="p">[</span><span class="n">compare_dict</span><span class="p">[</span><span class="n">key</span><span class="p">][</span><span class="s1">&#39;c_positive_label&#39;</span><span class="p">]</span> <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">GMM_set_name_list</span><span class="p">]</span>
+
+            <span class="n">c1_pidxs</span> <span class="o">=</span> <span class="n">compare_dict</span><span class="p">[</span><span class="n">c1_label</span><span class="p">][</span><span class="s1">&#39;c_pidxs&#39;</span><span class="p">]</span>
+            <span class="n">c2_pidxs</span> <span class="o">=</span> <span class="n">compare_dict</span><span class="p">[</span><span class="n">c2_label</span><span class="p">][</span><span class="s1">&#39;c_pidxs&#39;</span><span class="p">]</span>
+
+            <span class="n">c1c2_idxs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">intersect1d</span><span class="p">(</span><span class="n">c1_pidxs</span><span class="p">,</span> <span class="n">c2_pidxs</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">c1c2_idxs</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;The two GMM sets have no common cells.&#39;</span><span class="p">)</span>
+
+            <span class="n">c2_selected_data_probs</span> <span class="o">=</span> <span class="n">compare_dict</span><span class="p">[</span><span class="n">c2_label</span><span class="p">][</span><span class="s1">&#39;c_data_probs&#39;</span><span class="p">][</span><span class="n">c1c2_idxs</span><span class="p">]</span>
+            <span class="n">c1_selected_data_probs</span> <span class="o">=</span> <span class="n">compare_dict</span><span class="p">[</span><span class="n">c1_label</span><span class="p">][</span><span class="s1">&#39;c_data_probs&#39;</span><span class="p">][</span><span class="n">c1c2_idxs</span><span class="p">]</span>
+
+            <span class="n">c1c2_data_probs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">c1_selected_data_probs</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">,:],</span>
+                                                <span class="n">c2_selected_data_probs</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">,:]],</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            
+            <span class="n">max_c1c2_data_probs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">c1c2_data_probs</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+
+            <span class="n">argmax_c1c2_data_probs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">max_c1c2_data_probs</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+            <span class="n">c1c2_labels</span> <span class="o">=</span> <span class="p">[</span><span class="n">labels</span><span class="p">[</span><span class="n">arg_idx</span><span class="p">]</span> <span class="k">for</span> <span class="n">arg_idx</span> <span class="ow">in</span> <span class="n">argmax_c1c2_data_probs</span><span class="p">]</span>
+
+            <span class="n">gene_adata</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">define_gene_adata</span><span class="p">(</span><span class="n">genes</span><span class="p">)</span>
+            <span class="n">gene_adata</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">GMM_obs_label</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">default_label</span><span class="p">,</span><span class="n">gene_adata</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="n">GMM_labels</span> <span class="o">=</span> <span class="n">gene_adata</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">GMM_obs_label</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+            <span class="n">GMM_labels</span><span class="p">[</span><span class="n">c1_pidxs</span><span class="p">]</span> <span class="o">=</span> <span class="n">compare_dict</span><span class="p">[</span><span class="n">c1_label</span><span class="p">][</span><span class="s1">&#39;c_positive_label&#39;</span><span class="p">]</span>
+            <span class="n">GMM_labels</span><span class="p">[</span><span class="n">c2_pidxs</span><span class="p">]</span> <span class="o">=</span> <span class="n">compare_dict</span><span class="p">[</span><span class="n">c2_label</span><span class="p">][</span><span class="s1">&#39;c_positive_label&#39;</span><span class="p">]</span> 
+            <span class="n">GMM_labels</span><span class="p">[</span><span class="n">c1c2_idxs</span><span class="p">]</span> <span class="o">=</span> <span class="n">c1c2_labels</span>
+
+            <span class="n">gene_adata</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">GMM_obs_label</span><span class="p">]</span> <span class="o">=</span> <span class="n">GMM_labels</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">cc_phase_info_dict</span><span class="p">[</span><span class="n">GMM_set_save_name</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;GMM_set_name_list&#39;</span><span class="p">:</span><span class="n">GMM_set_name_list</span><span class="p">,</span>
+                                                          <span class="s1">&#39;gene_adata&#39;</span><span class="p">:</span><span class="n">gene_adata</span><span class="o">.</span><span class="n">copy</span><span class="p">()}</span></div>
+
+
+<div class="viewcode-block" id="GMM_CC_phase_prediction.define_GMM_compare_parameters">
+<a class="viewcode-back" href="../../cc_mapping.html#cc_mapping.core.GMM_CC_phase_prediction.define_GMM_compare_parameters">[docs]</a>
+    <span class="k">def</span> <span class="nf">define_GMM_compare_parameters</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">GMM_set_name_list</span><span class="p">:</span> <span class="nb">list</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Define GMM compare parameters.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            GMM_set_name_list (list): List of GMM set names.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            dict: Dictionary containing compare parameters for each GMM set name.</span>
+<span class="sd">                The dictionary has the following structure:</span>
+<span class="sd">                {</span>
+<span class="sd">                    &#39;GMM_set_name&#39;: {</span>
+<span class="sd">                        &#39;c_data_probs&#39;: c_data_probs,</span>
+<span class="sd">                        &#39;c_positive_label&#39;: c_positive_label,</span>
+<span class="sd">                        &#39;c_pidxs&#39;: c_pidxs</span>
+<span class="sd">                    },</span>
+<span class="sd">                    ...</span>
+<span class="sd">                }</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">compare_dict</span> <span class="o">=</span> <span class="n">OrderedDict</span><span class="p">()</span>
+
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">GMM_set_name_list</span><span class="p">:</span>
+            <span class="n">c_phase_dict</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cc_phase_info_dict</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+            <span class="n">c_gene</span> <span class="o">=</span> <span class="n">c_phase_dict</span><span class="p">[</span><span class="s1">&#39;gene&#39;</span><span class="p">]</span>
+            <span class="n">c_adata</span> <span class="o">=</span> <span class="n">c_phase_dict</span><span class="p">[</span><span class="sa">f</span><span class="s1">&#39;gene_adata&#39;</span><span class="p">]</span>
+
+            <span class="k">if</span> <span class="n">c_phase_dict</span><span class="p">[</span><span class="s1">&#39;duplicate_labels&#39;</span><span class="p">]:</span>
+                <span class="n">c_data_probs</span> <span class="o">=</span> <span class="n">c_phase_dict</span><span class="p">[</span><span class="s1">&#39;condensed_data_probs&#39;</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">c_data_probs</span> <span class="o">=</span> <span class="n">c_adata</span><span class="o">.</span><span class="n">uns</span><span class="p">[</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">c_gene</span><span class="si">}</span><span class="s1">_GMM_dict&#39;</span><span class="p">][</span><span class="s1">&#39;data_probs&#39;</span><span class="p">]</span>
+
+            <span class="n">c_phase_labels</span> <span class="o">=</span> <span class="n">c_adata</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">GMM_obs_label</span><span class="p">]</span>
+            <span class="n">c_positive_label</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">c_phase_labels</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;~&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)</span>
+            <span class="n">c_pidxs</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">get_str_idx</span><span class="p">(</span><span class="n">c_positive_label</span><span class="p">,</span> <span class="n">c_phase_labels</span><span class="p">)</span>
+
+            <span class="n">compare_dict</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="s1">&#39;c_data_probs&#39;</span><span class="p">:</span> <span class="n">c_data_probs</span><span class="p">,</span>
+                <span class="s1">&#39;c_positive_label&#39;</span><span class="p">:</span> <span class="n">c_positive_label</span><span class="p">,</span>
+                <span class="s1">&#39;c_pidxs&#39;</span><span class="p">:</span> <span class="n">c_pidxs</span><span class="p">,</span>
+            <span class="p">}</span>
+
+        <span class="k">return</span> <span class="n">compare_dict</span></div>
+
+
+<div class="viewcode-block" id="GMM_CC_phase_prediction.plot_GMM">
+<a class="viewcode-back" href="../../cc_mapping.html#cc_mapping.core.GMM_CC_phase_prediction.plot_GMM">[docs]</a>
+    <span class="k">def</span> <span class="nf">plot_GMM</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                    <span class="n">GMM_set_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+                    <span class="n">num_std</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+                    <span class="n">hist_kwargs</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+                    <span class="n">cmap</span><span class="p">:</span> <span class="n">plt</span><span class="o">.</span><span class="n">cm</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">cm</span><span class="o">.</span><span class="n">rainbow</span><span class="p">,</span>
+                    <span class="n">unit_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
+                    <span class="n">ratio</span><span class="p">:</span> <span class="nb">tuple</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">),</span>
+                    <span class="n">x_lim_upper_percentile</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">100</span><span class="p">,</span>
+                    <span class="n">resolution</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1000</span><span class="p">,</span>
+                    <span class="n">return_fig</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">            Plots the Gaussian Mixture Model (GMM) for a given GMM set.</span>
+
+<span class="sd">            Parameters:</span>
+<span class="sd">            - GMM_set_name (str): The name of the GMM set.</span>
+<span class="sd">            - num_std (int): The number of standard deviations to include in the plot.</span>
+<span class="sd">            - hist_kwargs (dict): Optional keyword arguments for customizing the histogram.</span>
+<span class="sd">            - cmap (plt.cm): The colormap to use for the GMM plot.</span>
+<span class="sd">            - unit_size (int): The size of the plot in inches.</span>
+<span class="sd">            - ratio (tuple): The ratio of the plot width to height.</span>
+<span class="sd">            - resolution (int): The resolution of the plot.</span>
+
+<span class="sd">            Returns:</span>
+<span class="sd">            None</span>
+<span class="sd">            &quot;&quot;&quot;</span>
+            <span class="n">cc_phase_dict</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cc_phase_info_dict</span><span class="p">[</span><span class="n">GMM_set_name</span><span class="p">]</span>
+
+            <span class="n">gene_adata</span> <span class="o">=</span> <span class="n">cc_phase_dict</span><span class="p">[</span><span class="s1">&#39;gene_adata&#39;</span><span class="p">]</span>
+
+            <span class="k">if</span> <span class="n">cc_phase_dict</span><span class="p">[</span><span class="s1">&#39;duplicate_labels&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="kc">True</span><span class="p">:</span>
+                <span class="n">labels</span> <span class="o">=</span> <span class="n">cc_phase_dict</span><span class="p">[</span><span class="s1">&#39;condensed_labels&#39;</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">labels</span> <span class="o">=</span> <span class="n">cc_phase_dict</span><span class="p">[</span><span class="s1">&#39;ordered_GMM_labels&#39;</span><span class="p">]</span>
+
+            <span class="n">gene</span> <span class="o">=</span> <span class="n">gene_adata</span><span class="o">.</span><span class="n">var_names</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">gene_x</span> <span class="o">=</span> <span class="n">gene_adata</span><span class="o">.</span><span class="n">X</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+            <span class="n">GMM_dict</span> <span class="o">=</span> <span class="n">gene_adata</span><span class="o">.</span><span class="n">uns</span><span class="p">[</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">gene</span><span class="si">}</span><span class="s1">_GMM_dict&#39;</span><span class="p">]</span>
+
+            <span class="n">n_components</span> <span class="o">=</span> <span class="n">GMM_dict</span><span class="p">[</span><span class="s1">&#39;n_components&#39;</span><span class="p">]</span>
+            <span class="n">means</span> <span class="o">=</span> <span class="n">GMM_dict</span><span class="p">[</span><span class="s1">&#39;means&#39;</span><span class="p">]</span>
+            <span class="n">covs</span> <span class="o">=</span> <span class="n">GMM_dict</span><span class="p">[</span><span class="s1">&#39;covs&#39;</span><span class="p">]</span>
+            <span class="n">weights</span> <span class="o">=</span> <span class="n">GMM_dict</span><span class="p">[</span><span class="s1">&#39;weights&#39;</span><span class="p">]</span>
+
+            <span class="n">colors</span> <span class="o">=</span> <span class="n">cmap</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">n_components</span><span class="p">))</span>
+
+            <span class="n">row_ratio</span><span class="p">,</span> <span class="n">col_ratio</span> <span class="o">=</span> <span class="n">ratio</span>
+            <span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="n">col_ratio</span><span class="o">*</span><span class="n">unit_size</span><span class="p">,</span>  <span class="n">row_ratio</span><span class="o">*</span><span class="n">unit_size</span><span class="p">))</span>
+
+            <span class="k">if</span> <span class="n">hist_kwargs</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">hist_kwargs</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;bins&quot;</span><span class="p">:</span><span class="mi">100</span><span class="p">,</span> <span class="s1">&#39;color&#39;</span><span class="p">:</span><span class="s1">&#39;black&#39;</span><span class="p">,</span> <span class="s2">&quot;density&quot;</span><span class="p">:</span> <span class="kc">True</span><span class="p">,}</span>
+
+            <span class="n">threshold</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">percentile</span><span class="p">(</span><span class="n">gene_x</span><span class="p">,</span> <span class="n">x_lim_upper_percentile</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="n">trunc_gene_x</span> <span class="o">=</span> <span class="n">gene_x</span><span class="p">[</span><span class="n">gene_x</span> <span class="o">&lt;</span> <span class="n">threshold</span><span class="p">]</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">hist</span><span class="p">(</span><span class="n">trunc_gene_x</span><span class="p">,</span> <span class="o">**</span><span class="n">hist_kwargs</span><span class="p">,</span> <span class="n">zorder</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+            <span class="n">hist_y_lims</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">ylim</span><span class="p">()</span>
+            <span class="n">lower_hist_x_lim</span> <span class="p">,</span> <span class="n">upper_hist_x_lim</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">xlim</span><span class="p">()</span>
+             
+            <span class="k">if</span> <span class="n">lower_hist_x_lim</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">hist_x_lims</span> <span class="o">=</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">upper_hist_x_lim</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">hist_x_lims</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">xlim</span><span class="p">()</span>
+
+            <span class="k">for</span> <span class="n">guas_idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n_components</span><span class="p">):</span>
+                <span class="n">g_mean</span> <span class="o">=</span> <span class="n">means</span><span class="p">[</span><span class="n">guas_idx</span><span class="p">]</span>
+                <span class="n">g_cov</span> <span class="o">=</span> <span class="n">covs</span><span class="p">[</span><span class="n">guas_idx</span><span class="p">]</span>
+                <span class="n">g_weight</span> <span class="o">=</span> <span class="n">weights</span><span class="p">[</span><span class="n">guas_idx</span><span class="p">]</span>
+
+                <span class="n">std</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">g_cov</span><span class="p">)</span>
+
+                <span class="n">x_min</span> <span class="o">=</span> <span class="n">g_mean</span> <span class="o">-</span> <span class="n">num_std</span><span class="o">*</span><span class="n">std</span>
+                <span class="n">x_max</span> <span class="o">=</span> <span class="n">g_mean</span> <span class="o">+</span> <span class="n">num_std</span><span class="o">*</span><span class="n">std</span>
+
+                <span class="n">x_axis</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">x_min</span><span class="p">,</span> <span class="n">x_max</span><span class="p">,</span> <span class="n">resolution</span><span class="p">)</span>
+
+                <span class="n">y_axis</span> <span class="o">=</span> <span class="n">st</span><span class="o">.</span><span class="n">norm</span><span class="o">.</span><span class="n">pdf</span><span class="p">(</span><span class="n">x_axis</span><span class="p">,</span> <span class="n">loc</span><span class="o">=</span><span class="n">g_mean</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="n">std</span><span class="p">)</span><span class="o">*</span><span class="n">g_weight</span>
+
+                <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">x_axis</span><span class="p">,</span> <span class="n">y_axis</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">colors</span><span class="p">[</span><span class="n">guas_idx</span><span class="p">],</span> <span class="n">zorder</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+                <span class="n">plt</span><span class="o">.</span><span class="n">axvline</span><span class="p">(</span><span class="n">g_mean</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="n">colors</span><span class="p">[</span><span class="n">guas_idx</span><span class="p">],</span> <span class="n">lw</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">ls</span><span class="o">=</span><span class="s1">&#39;--&#39;</span><span class="p">,</span><span class="n">zorder</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">plot_linear_decision_boundaries</span><span class="p">(</span><span class="n">gene_adata</span><span class="p">,</span>
+                                                <span class="n">gene_x</span><span class="p">,</span>
+                                                <span class="n">labels</span><span class="p">,</span>
+                                                <span class="n">hist_x_lims</span><span class="p">,</span>
+                                                <span class="n">hist_y_lims</span><span class="p">,</span>
+                                                <span class="n">resolution</span><span class="p">,</span>
+                                                <span class="n">cmap</span><span class="p">,)</span>
+
+            <span class="n">patch_list</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">label</span><span class="p">,</span> <span class="n">color</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">labels</span><span class="p">,</span> <span class="n">colors</span><span class="p">):</span>
+                <span class="n">patch</span> <span class="o">=</span> <span class="n">mpatches</span><span class="o">.</span><span class="n">Patch</span><span class="p">(</span><span class="n">facecolor</span><span class="o">=</span><span class="n">color</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">label</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span>  <span class="n">edgecolor</span><span class="o">=</span><span class="s1">&#39;black&#39;</span><span class="p">)</span>
+                <span class="n">patch_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">patch</span><span class="p">)</span>
+
+            <span class="n">plt</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">handles</span> <span class="o">=</span> <span class="n">patch_list</span><span class="p">)</span>
+
+            <span class="n">plt</span><span class="o">.</span><span class="n">xlim</span><span class="p">(</span><span class="n">hist_x_lims</span><span class="p">)</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">ylim</span><span class="p">(</span><span class="n">hist_y_lims</span><span class="p">)</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">gene</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">return_fig</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">fig</span></div>
+
+        
+        
+<div class="viewcode-block" id="GMM_CC_phase_prediction.merge_GMM_adata_labels">
+<a class="viewcode-back" href="../../cc_mapping.html#cc_mapping.core.GMM_CC_phase_prediction.merge_GMM_adata_labels">[docs]</a>
+    <span class="k">def</span> <span class="nf">merge_GMM_adata_labels</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">GMM_set_name_list</span><span class="p">,</span> <span class="n">new_labels</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">):</span>
+
+        <span class="k">if</span> <span class="n">new_labels</span><span class="p">:</span>
+            <span class="n">GMM_labels</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">default_label</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">adata</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">object</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">GMM_labels</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">adata</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">GMM_obs_label</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+        <span class="k">for</span> <span class="n">GMM_set_name</span> <span class="ow">in</span> <span class="n">GMM_set_name_list</span><span class="p">:</span>
+            <span class="n">GMM_adata</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cc_phase_info_dict</span><span class="p">[</span><span class="n">GMM_set_name</span><span class="p">][</span><span class="s1">&#39;gene_adata&#39;</span><span class="p">]</span>
+
+            <span class="n">GMM_cell_ids</span> <span class="o">=</span> <span class="n">GMM_adata</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="s1">&#39;CellID&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+            <span class="n">GMM_idxs</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">get_str_idx</span><span class="p">(</span><span class="n">GMM_cell_ids</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">adata</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="s1">&#39;CellID&#39;</span><span class="p">])</span>
+            
+            <span class="n">GMM_labels</span><span class="p">[</span><span class="n">GMM_idxs</span><span class="p">]</span> <span class="o">=</span> <span class="n">GMM_adata</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">GMM_obs_label</span><span class="p">]</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">adata</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">GMM_obs_label</span><span class="p">]</span> <span class="o">=</span> <span class="n">GMM_labels</span></div>
+
+
+
+<div class="viewcode-block" id="GMM_CC_phase_prediction.plot_linear_decision_boundaries">
+<a class="viewcode-back" href="../../cc_mapping.html#cc_mapping.core.GMM_CC_phase_prediction.plot_linear_decision_boundaries">[docs]</a>
+    <span class="k">def</span> <span class="nf">plot_linear_decision_boundaries</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                                        <span class="n">gene_adata</span><span class="p">:</span> <span class="n">ad</span><span class="o">.</span><span class="n">AnnData</span><span class="p">,</span>
+                                        <span class="n">gene_x</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+                                        <span class="n">labels</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span>
+                                        <span class="n">x_lims</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">,</span>
+                                        <span class="n">y_lims</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">,</span>
+                                        <span class="n">resolution</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+                                        <span class="n">cmap</span><span class="p">:</span> <span class="n">plt</span><span class="o">.</span><span class="n">cm</span><span class="p">,):</span>
+
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Plots linear decision boundaries using Support Vector Machine (SVM) for classification.</span>
+
+<span class="sd">        Parameters:</span>
+<span class="sd">        - gene_adata (ad.AnnData): Annotated data matrix containing gene expression data.</span>
+<span class="sd">        - gene_x (np.ndarray): Array of gene expression values.</span>
+<span class="sd">        - labels (list): List of class labels.</span>
+<span class="sd">        - x_lims (tuple): Tuple specifying the x-axis limits for the plot.</span>
+<span class="sd">        - y_lims (tuple): Tuple specifying the y-axis limits for the plot.</span>
+<span class="sd">        - resolution (int): Number of points to generate along each axis for the decision boundaries.</span>
+<span class="sd">        - cmap (plt.cm): Colormap for the plot.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">        None</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1">#encoding the labels from strings to integers</span>
+        <span class="n">encoder</span> <span class="o">=</span> <span class="n">LabelEncoder</span><span class="p">()</span>
+        <span class="n">encoder</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">gene_adata</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">GMM_obs_label</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">)</span>
+
+        <span class="c1">#Reassigning the classes to the encoder</span>
+        <span class="n">encoder</span><span class="o">.</span><span class="n">classes_</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">labels</span><span class="p">)</span>
+        <span class="n">encoded_labels</span> <span class="o">=</span> <span class="n">encoder</span><span class="o">.</span><span class="n">transform</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">gene_adata</span><span class="o">.</span><span class="n">obs</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">GMM_obs_label</span><span class="p">]))</span>
+
+        <span class="c1">#prepration of data to train the SVM</span>
+        <span class="n">dummy_feature</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">gene_adata</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="o">.</span><span class="n">T</span>
+        <span class="n">svm_x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">([</span><span class="n">gene_x</span><span class="p">,</span> <span class="n">dummy_feature</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">)])</span>
+        <span class="n">SVm</span> <span class="o">=</span> <span class="n">svm</span><span class="o">.</span><span class="n">SVC</span><span class="p">(</span> <span class="n">random_state</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">SVm</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">svm_x</span><span class="p">,</span> <span class="n">encoded_labels</span><span class="p">)</span>    
+
+        <span class="c1">#Creating the grid to predict the labels of the new data and stacking dummy variable</span>
+        <span class="n">test_x_axis</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">x_lims</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">x_lims</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">resolution</span><span class="p">)</span>
+        <span class="n">svm_pred_x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">vstack</span><span class="p">([</span><span class="n">test_x_axis</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">resolution</span><span class="p">)])</span><span class="o">.</span><span class="n">T</span>
+        
+        <span class="c1">#Using the trained SVM to predict the labels of the new data</span>
+        <span class="n">predictions</span> <span class="o">=</span> <span class="n">SVm</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">svm_pred_x</span><span class="p">)</span>
+
+        <span class="c1">#Reshaping the predictions to be used in the contourf function</span>
+        <span class="n">predictions_contourf</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">predictions</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">),</span> <span class="n">resolution</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">T</span>
+
+        <span class="c1">#Creating the array of the y axis to be used in the contourf function</span>
+        <span class="n">test_y_axis</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="n">y_lims</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">y_lims</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">resolution</span><span class="p">)</span>
+
+        <span class="n">plt</span><span class="o">.</span><span class="n">contourf</span><span class="p">(</span><span class="n">test_x_axis</span><span class="p">,</span>
+                    <span class="n">test_y_axis</span><span class="p">,</span>
+                    <span class="n">predictions_contourf</span><span class="p">,</span>
+                    <span class="n">alpha</span><span class="o">=</span><span class="mf">0.15</span><span class="p">,</span>
+                    <span class="n">cmap</span><span class="o">=</span><span class="n">cmap</span><span class="p">,</span>
+                    <span class="n">zorder</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="GMM_CC_phase_prediction.GMM_BIC_evaluation">
+<a class="viewcode-back" href="../../cc_mapping.html#cc_mapping.core.GMM_CC_phase_prediction.GMM_BIC_evaluation">[docs]</a>
+    <span class="k">def</span> <span class="nf">GMM_BIC_evaluation</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                            <span class="n">GMM_set_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+                            <span class="n">bic_range</span><span class="p">:</span><span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
+                            <span class="n">unit_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
+                            <span class="n">ratio</span><span class="p">:</span> <span class="nb">tuple</span> <span class="o">=</span> <span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="mi">1</span><span class="p">),</span>
+                            <span class="n">return_fig</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,):</span>
+<span class="w">            </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">            Evaluates the Bayesian Information Criterion (BIC) for Gaussian Mixture Models (GMMs).</span>
+
+<span class="sd">            Parameters:</span>
+<span class="sd">            - GMM_set_name (str): The name of the GMM set to evaluate.</span>
+<span class="sd">            - bic_range (int): The range of number of components to test the BIC metric.</span>
+<span class="sd">            - unit_size (int): The size of the plot units.</span>
+<span class="sd">            - ratio (tuple): The ratio of the plot dimensions.</span>
+
+<span class="sd">            Returns:</span>
+<span class="sd">            None</span>
+<span class="sd">            &quot;&quot;&quot;</span>
+            <span class="n">gene_adata</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cc_phase_info_dict</span><span class="p">[</span><span class="n">GMM_set_name</span><span class="p">][</span><span class="s1">&#39;gene_adata&#39;</span><span class="p">]</span>
+            <span class="n">n_components</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cc_phase_info_dict</span><span class="p">[</span><span class="n">GMM_set_name</span><span class="p">][</span><span class="s1">&#39;n_components&#39;</span><span class="p">]</span>
+
+
+            <span class="n">cc_x</span> <span class="o">=</span> <span class="n">gene_adata</span><span class="o">.</span><span class="n">X</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+            <span class="n">bics</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">counter</span><span class="o">=</span><span class="mi">1</span>
+            <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">range</span> <span class="p">(</span><span class="n">bic_range</span><span class="p">):</span> <span class="c1"># test the AIC/BIC metric between 1 and 10 components</span>
+                <span class="n">gmm</span> <span class="o">=</span> <span class="n">GaussianMixture</span><span class="p">(</span><span class="n">n_components</span> <span class="o">=</span> <span class="n">counter</span><span class="p">,</span> <span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">GMM_kwargs</span><span class="p">)</span>
+                <span class="n">labels</span> <span class="o">=</span> <span class="n">gmm</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">cc_x</span><span class="p">)</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">cc_x</span><span class="p">)</span>
+                <span class="n">bic</span> <span class="o">=</span> <span class="n">gmm</span><span class="o">.</span><span class="n">bic</span><span class="p">(</span><span class="n">cc_x</span><span class="p">)</span>
+                <span class="n">bics</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">bic</span><span class="p">)</span>
+                <span class="n">counter</span> <span class="o">=</span> <span class="n">counter</span> <span class="o">+</span> <span class="mi">1</span>
+
+            <span class="n">row_ratio</span><span class="p">,</span> <span class="n">col_ratio</span> <span class="o">=</span> <span class="n">ratio</span>
+            <span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="n">col_ratio</span> <span class="o">*</span> <span class="n">unit_size</span><span class="p">,</span> <span class="n">row_ratio</span> <span class="o">*</span> <span class="n">unit_size</span><span class="p">))</span>
+
+            <span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="n">bic_range</span><span class="o">+</span><span class="mi">1</span><span class="p">),</span> <span class="n">bics</span><span class="p">,</span> <span class="s1">&#39;o-&#39;</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">c</span><span class="o">=</span><span class="s1">&#39;black&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;BIC&#39;</span><span class="p">)</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s1">&#39;Number of components&#39;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s1">&#39;Information criterion&#39;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">axvline</span><span class="p">(</span><span class="n">n_components</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;red&#39;</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">&#39;--&#39;</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">3</span><span class="p">)</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">xticks</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="n">bic_range</span><span class="o">+</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;GMM BIC evaluation&#39;</span><span class="p">)</span>
+            <span class="n">plt</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+
+            <span class="k">if</span> <span class="n">return_fig</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">fig</span></div>
+</div>
+
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Dante Poe.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

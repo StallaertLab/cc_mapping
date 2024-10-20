@@ -66,7 +66,7 @@ def train_random_forest_model(features,
 
     return rf_classifier, accuracy
 
-def RF_increment_counter(acc_list, optim_feat_num, counter, stable_counter, threshold):
+def __RF_increment_counter(acc_list, optim_feat_num, counter, stable_counter, threshold):
     """
     Increment the counter based on the accuracy difference between the current feature and the previous feature.
 
@@ -237,7 +237,7 @@ def random_forest_feature_selection(adata: ad.AnnData,
 
                     temp_max_acc_arg, temp_counter = max_acc_arg, counter
                     for _ in range(stable_counter):
-                        temp_max_acc_arg, temp_counter, continue_bool = RF_increment_counter(acc_list, temp_max_acc_arg, temp_counter, stable_counter, threshold)
+                        temp_max_acc_arg, temp_counter, continue_bool = __RF_increment_counter(acc_list, temp_max_acc_arg, temp_counter, stable_counter, threshold)
 
                         if not continue_bool:
                             break
@@ -310,23 +310,31 @@ def random_forest_feature_selection(adata: ad.AnnData,
     return adata
 
 class GMM_CC_phase_prediction():
-    """
-    Class for performing GMM-based phase prediction in single-cell RNA-seq data.
-
-    Parameters:
-    - adata: Anndata object containing the single-cell RNA-seq data.
-    - GMM_obs_label: String, the name of the observation column to store the GMM phase labels.
-    - GMM_kwargs: Dictionary, additional keyword arguments for the GaussianMixture model.
-
+    '''
+    GMM_CC_phase_prediction is a class for predicting cell cycle phases using Gaussian Mixture Models (GMM) on gene expression data.
+    Attributes:
+        adata (AnnData): Annotated data matrix.
+        default_label (str): Default label for observations.
+        GMM_obs_label (str): Label for GMM observations.
+        GMM_kwargs (dict): Keyword arguments for GMM.
+        cc_phase_info_dict (dict): Dictionary to store cell cycle phase information.
     Methods:
-    - row_data_partitioning: Partition the data based on a search term and phase observation label.
-    - define_gene_adata: Define the Anndata object for a specific gene, with or without row data partitioning.
-    - fit_GMM: Fit a GaussianMixture model to a specific gene and assign phase labels.
-    - compare_GMM_labels: Compare phase labels between two GMM sets and assign new labels.
-    - define_GMM_compare_parameters: Define parameters for comparing GMM sets.
-    - plot_GMM: Plot the GaussianMixture model and the linear decision boundaries.
-    - plot_linear_decision_boundaries: Plot the linear decision boundaries for a specific gene.
-    """
+        __init__(self, adata, GMM_obs_label='GMM_phase_labels', GMM_kwargs=None):
+            Initializes the GMM_CC_phase_prediction class.
+        row_data_partitioning(self, GMM_set_name, obs_search_term=None, GMM_set_name_to_partition=None, phase_obs_label=None):
+            Partitions the row data based on the given parameters.
+        define_gene_adata(self, gene, row_data_partitioning=False, GMM_set_name=None):
+        fit_GMM(self, gene, ordered_GMM_labels, n_components=None, GMM_set_name=None, GMM_kwargs=None, duplicate_labels=False, row_data_partitioning=False):
+        compare_GMM_labels(self, GMM_set_name_list, GMM_set_save_name):
+            Compares the GMM labels for two sets and updates the gene_adata object with the results.
+        define_GMM_compare_parameters(self, GMM_set_name_list):
+            Defines GMM compare parameters.
+        plot_GMM(self, GMM_set_name, num_std=3, hist_kwargs=None, cmap=plt.cm.rainbow, unit_size=5, ratio=(1,1), x_lim_upper_percentile=100, resolution=1000, return_fig=False):
+        merge_GMM_adata_labels(self, GMM_set_name_list, new_labels=True):
+            Merges GMM adata labels.
+        plot_linear_decision_boundaries(self, gene_adata, gene_x, labels, x_lims, y_lims, resolution, cmap):
+        GMM_BIC_evaluation(self, GMM_set_name, bic_range=5, unit_size=5, ratio=(1,1), return_fig=False):
+    '''
     def __init__(self,
                  adata,
                  GMM_obs_label: str = 'GMM_phase_labels',
@@ -621,21 +629,35 @@ class GMM_CC_phase_prediction():
                     x_lim_upper_percentile: int = 100,
                     resolution: int = 1000,
                     return_fig: bool = False):
+            
             """
-            Plots the Gaussian Mixture Model (GMM) for a given GMM set.
-
+            Plots the Gaussian Mixture Model (GMM) for a given dataset.
             Parameters:
-            - GMM_set_name (str): The name of the GMM set.
-            - num_std (int): The number of standard deviations to include in the plot.
-            - hist_kwargs (dict): Optional keyword arguments for customizing the histogram.
-            - cmap (plt.cm): The colormap to use for the GMM plot.
-            - unit_size (int): The size of the plot in inches.
-            - ratio (tuple): The ratio of the plot width to height.
-            - resolution (int): The resolution of the plot.
-
+            -----------
+            GMM_set_name : str
+                The name of the GMM set to be plotted.
+            num_std : int, optional
+                Number of standard deviations to use for plotting the Gaussian components (default is 3).
+            hist_kwargs : dict, optional
+                Additional keyword arguments to pass to the histogram plotting function (default is None).
+            cmap : plt.cm, optional
+                Colormap to use for the GMM components (default is plt.cm.rainbow).
+            unit_size : int, optional
+                Size of each unit in the plot (default is 5).
+            ratio : tuple, optional
+                Ratio of the plot dimensions (default is (1, 1)).
+            x_lim_upper_percentile : int, optional
+                Upper percentile to limit the x-axis of the histogram (default is 100).
+            resolution : int, optional
+                Resolution for the Gaussian component plots (default is 1000).
+            return_fig : bool, optional
+                If True, the function returns the figure object (default is False).
             Returns:
-            None
+            --------
+            fig : matplotlib.figure.Figure, optional
+                The figure object if return_fig is True.
             """
+            
             cc_phase_dict = self.cc_phase_info_dict[GMM_set_name]
 
             gene_adata = cc_phase_dict['gene_adata']
@@ -715,7 +737,12 @@ class GMM_CC_phase_prediction():
         
         
     def merge_GMM_adata_labels(self, GMM_set_name_list, new_labels: bool = True):
+        """_summary_
 
+        Args:
+            GMM_set_name_list (_type_): _description_
+            new_labels (bool, optional): _description_. Defaults to True.
+        """
         if new_labels:
             GMM_labels = np.repeat(self.default_label, self.adata.shape[0]).astype(object)
         else:

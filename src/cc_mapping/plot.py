@@ -4,7 +4,6 @@ import matplotlib.patches as mpatches
 import os 
 import matplotlib._pylab_helpers
 import anndata as ad
-import scipy.stats as st
 import matplotlib.pyplot as plt
 import numpy as np
 from typing import Union,List

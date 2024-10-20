@@ -1,5 +1,4 @@
 import anndata as ad
-import scipy.stats as st
 import pandas as pd
 import matplotlib as mpl
 import os
@@ -8,14 +7,12 @@ np.seterr(all="ignore")
 import anndata as ad
 from tqdm import tqdm
 import matplotlib as mpl
-from matplotlib.axes import Axes
 import matplotlib.pyplot as plt
 import phate
 
 from typing import Union
 
 from .plot import general_plotting_function, get_legend, combine_Lof_plots
-from .api import get_G0MO3_results, ReturnPhateResults
 
 def run_phate(adata: ad.AnnData,
               feature_set:str,
