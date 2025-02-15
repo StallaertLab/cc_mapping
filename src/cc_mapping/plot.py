@@ -1,17 +1,16 @@
-import os
-from typing import Union, List
-import itertools
+from __future__ import annotations
 
+import itertools
+import os
+from math import ceil, floor
+
+import anndata as ad
 import matplotlib as mpl
-import matplotlib.pyplot as plt
 import matplotlib._pylab_helpers
 import matplotlib.patches as mpatches
-
-from math import floor, ceil
-
-import pandas as pd
-import anndata as ad
+import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 
 from .utils import get_str_idx
 
@@ -19,8 +18,8 @@ from .utils import get_str_idx
 def plot_row_partitions(
     adata: ad.AnnData,
     obs_search_term: str,
-    colors: Union[list, np.ndarray] = None,
-    column_labels: Union[list, np.ndarray] = None,
+    colors: list | np.ndarray = None,
+    column_labels: list | np.ndarray = None,
     obs_embedding_key: str = "X_phate",
     kwargs: dict = None,
     plot_all: bool = True,
@@ -247,7 +246,6 @@ def general_plotting_function(
                 init_row = fig.add_subplot(gs[0, 1:])
                 # this splits the first row into multiple labels based on the number of columns and annotates each one
                 for col_num in range(num_cols):
-
                     left_limit = col_param_limits[col_num]
                     right_limit = col_param_limits[col_num + 1]
 
@@ -302,7 +300,6 @@ def general_plotting_function(
 
                 # add a small box in the upper right corner to indicate what the constant parameter is for the hyperparameter search
                 if hyperparam_search == True:
-
                     constant_var_name = param_info_dict["constant_label"]
                     constant_param = fig.add_subplot(gs[0, 0])
                     anno_opts["xy"] = (0.5, 0.5)
@@ -357,8 +354,8 @@ def get_legend(adata: ad.AnnData, color_name: str, label_name: str = None):
     return patch_list, colors
 
 
-def combine_plots(
-    list_of_plots: List[mpl.figure.Figure] = None,
+def combine_Lof_plots(
+    list_of_plots: list[mpl.figure.Figure] = None,
     fig_dims: tuple = None,
     default_padding: tuple = (0, 0),
     default_padding_color: tuple = 255,
@@ -412,7 +409,6 @@ def combine_plots(
     )
 
     for fig_idx, fig in enumerate(list_of_plots):
-
         row_diff = max_figure_dims[0] - fig.shape[0]
         col_diff = max_figure_dims[1] - fig.shape[1]
 

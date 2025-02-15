@@ -1,19 +1,20 @@
+from __future__ import annotations
+
 import os
-from typing import Union
 
 import anndata as ad
+import numpy as np
 import pandas as pd
 import phate
 
-import numpy as np
 np.seterr(all="ignore")
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-
 from tqdm import tqdm
 
-from .plot import general_plotting_function, get_legend, combine_Lof_plots
+from .plot import combine_Lof_plots, general_plotting_function, get_legend
+
 
 def run_phate(
     adata: ad.AnnData,
@@ -59,7 +60,7 @@ def run_phate(
 
 def plot_phate_coords(
     adata: ad.AnnData = None,
-    colors: Union[np.ndarray, list] = None,
+    colors: np.ndarray | list = None,
     phate_coords: np.ndarray = None,
     kwargs: dict = None,
     axe: mpl.axes = None,
@@ -86,9 +87,9 @@ def plot_phate_coords(
     mpl.figure.Figure, mpl.axes.Axes or mpl.axes.Axes: If `return_fig` is True, returns the figure and axes objects. Otherwise, returns the axes object.
     """
 
-    if not isinstance(kwargs,dict):
+    if not isinstance(kwargs, dict):
         raise ValueError("kwargs is not a dict")
-    
+
     if kwargs is None:
         kwargs = {}
 
@@ -188,14 +189,14 @@ def perform_phate_hyperparameter_search(
     feature_set: str,
     hyperparam_dict: dict,
     hyperparam_info_dict: dict,
-    additional_plotting_dict_params: dict,
+    additional_plotting_dict_params: dict = None,
     layer: str = None,
     plotting_function: callable = None,
     color_name: list = None,
     save_path: str = None,
     legend: bool = False,
     unit_size: int = 10,
-    kwargs: dict = {},
+    kwargs: dict = None,
 ):
     """
     Perform hyperparameter search for PHATE visualization.
@@ -215,6 +216,9 @@ def perform_phate_hyperparameter_search(
     Returns:
     matplotlib.figure.Figure: Combined figure of hyperparameter search plots.
     """
+
+    if kwargs is None:
+        kwargs = {}
 
     if save_path is not None:
         save_dir = os.path.dirname(save_path)
@@ -247,7 +251,6 @@ def perform_phate_hyperparameter_search(
         total=number_param_plots,
         desc="Generating hyperparameter search plots",
     ):
-
         plotting_dict = {
             "adata": adata,
             "feature_set": feature_set,
