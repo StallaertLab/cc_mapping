@@ -1,15 +1,15 @@
 # cc_mapping
 
 ```{toctree}
-:maxdepth: 2
+:maxdepth: 3
 :hidden:
-:caption: API
+:caption: CC_MAPPING
 
-api/cc_mapping
+api/index
 ```
 
-```{include} ../README.md
-:start-after: <!-- SPHINX-START -->
+```{include} ../../README.md
+
 ```
 
 ## Indices and tables
