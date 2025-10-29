@@ -1,15 +1,15 @@
-import palantir
-import pandas as pd
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-from tqdm import tqdm
-import os
 import contextlib
-import numpy as np
-import anndata as ad
+import os
 from collections import Counter
 
-from .plot import general_plotting_function, combine_Lof_plots
+import anndata as ad
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import numpy as np
+import palantir
+from tqdm import tqdm
+
+from .plot import combine_Lof_plots, general_plotting_function
 
 
 def run_palantir_pseudotime(
@@ -27,7 +27,7 @@ def run_palantir_pseudotime(
     """
     Runs the Palantir pseudotime analysis on the provided AnnData object.
 
-    Parameters:
+    Args:
         adata (ad.AnnData): The AnnData object containing the data.
         root_cell (str): The name of the root cell for pseudotime analysis.
         data_key (str): The key in `adata.obsm` where the data is stored.
@@ -42,7 +42,6 @@ def run_palantir_pseudotime(
     Returns:
         matplotlib.figure.Figure or None: The generated plot figure, or None if an error occurred.
     """
-
     if kwargs is None:
         kwargs = {}
 
@@ -75,8 +74,6 @@ def run_palantir_pseudotime(
         )
         plt.tight_layout()
         return fig
-    
-    
 
 
 def palantir_pseudotime_hyperparam_plotting_function(
@@ -96,7 +93,6 @@ def palantir_pseudotime_hyperparam_plotting_function(
         matplotlib.axes.Axes: The modified axes object.
         numpy.ndarray: The plot as a numpy array.
     """
-
     col_idx = idx_dict["col_idx"] - 1
     row_idx = idx_dict["row_idx"] - 1
 
@@ -194,19 +190,21 @@ def perform_palantir_hyperparameter_search(
     """
     Perform hyperparameter search for Palantir pseudotime analysis.
 
-    Parameters:
-    adata (ad.AnnData): Annotated data object.
-    data_key (str): Key for accessing the data in `adata`.
-    root_cell (str): Name of the root cell for pseudotime analysis.
-    hyperparam_dict (dict): Dictionary containing hyperparameters to be searched.
-    hyperparam_info_dict (dict): Dictionary containing information about hyperparameters.
-    obsm_embedding (str, optional): Key for accessing the embedding in `adata.obsm`. Defaults to 'X_phate'.
-    save_path (str, optional): Path to save the final figure. Defaults to None.
-    unit_size (int, optional): Size of each subplot in the final figure. Defaults to 10.
-    kwargs (dict, optional): Additional keyword arguments for plotting functions. Defaults to {}.
+    Args:
+        adata (ad.AnnData): Annotated data object.
+        data_key (str): Key for accessing the data in `adata`.
+        root_cell (str): Name of the root cell for pseudotime analysis.
+        hyperparam_dict (dict): Dictionary containing hyperparameters to be searched.
+        hyperparam_info_dict (dict): Dictionary containing information about hyperparameters.
+        additional_plotting_dict_params (dict): Additional parameters for plotting.
+        plotting_function (callable, optional): Function to use for plotting. Defaults to palantir_pseudotime_hyperparam_plotting_function.
+        obsm_embedding (str, optional): Key for accessing the embedding in `adata.obsm`. Defaults to 'X_phate'.
+        save_path (str, optional): Path to save the final figure. Defaults to None.
+        unit_size (int, optional): Size of each subplot in the final figure. Defaults to 10.
+        kwargs (dict, optional): Additional keyword arguments for plotting functions. Defaults to {}.
 
     Returns:
-    ax: The matplotlib axis object containing the final figure.
+        matplotlib.axes.Axes: The matplotlib axis object containing the final figure.
     """
     if save_path is not None:
         save_dir = os.path.dirname(save_path)

@@ -30,19 +30,23 @@ def plot_row_partitions(
     """
     Plot row partitions of the given AnnData object.
 
-    Parameters:
-    adata (ad.AnnData): The AnnData object containing the data.
-    obs_search_term (str): The search term for selecting the observations.
-    color_info_dict: The dictionary containing color information.
-    kwargs (dict, optional): Additional keyword arguments for the plotting function. Defaults to {}.
-    unit_size (int, optional): The size of each unit in the plot. Defaults to 20.
-    save_path (str, optional): The path to save the plot. Defaults to None.
+    Args:
+        adata (ad.AnnData): The AnnData object containing the data.
+        obs_search_term (str): The search term for selecting the observations.
+        colors (list | np.ndarray, optional): List or array of colors for the plot. Defaults to None.
+        column_labels (list | np.ndarray, optional): List or array of column labels. Defaults to None.
+        obs_embedding_key (str, optional): The key for the observation embedding. Defaults to 'X_phate'.
+        kwargs (dict, optional): Additional keyword arguments for the plotting function. Defaults to None.
+        plot_all (bool, optional): Whether to plot all partitions. Defaults to True.
+        plot_background (bool, optional): Whether to plot the background. Defaults to True.
+        unit_size (int, optional): The size of each unit in the plot. Defaults to 20.
+        save_path (str, optional): The path to save the plot. Defaults to None.
 
     Raises:
-    ValueError: If the save directory does not exist.
+        ValueError: If the save directory does not exist.
 
     Returns:
-    None
+        None
     """
     if save_path is not None:
         save_dir = os.path.dirname(save_path)
@@ -78,13 +82,13 @@ def row_partition_plotting_function(ax, idx_dict, plotting_dict):
     """
     Plotting function for row partition.
 
-    Parameters:
-    - ax (matplotlib.axes.Axes): The axes on which to plot.
-    - idx_dict (dict): A dictionary containing row and column indices.
-    - plotting_dict (dict): A dictionary containing plotting parameters.
+    Args:
+        ax (matplotlib.axes.Axes): The axes on which to plot.
+        idx_dict (dict): A dictionary containing row and column indices.
+        plotting_dict (dict): A dictionary containing plotting parameters.
 
     Returns:
-    - ax (matplotlib.axes.Axes): The modified axes object.
+        matplotlib.axes.Axes: The modified axes object.
     """
     Lof_colors = plotting_dict["Lof_colors"]
     column_labels = plotting_dict["column_labels"]
@@ -161,20 +165,20 @@ def general_plotting_function(
     """
     A general plotting function that creates a grid of subplots for visualization.
 
-    Parameters:
-    - plotting_function: The function used to plot on each subplot.
-    - param_info_dict: A dictionary containing information about the parameters for hyperparameter search.
-    - plotting_dict: A dictionary containing information for plotting.
-    - hyperparam_search: A boolean indicating whether hyperparameter search is enabled.
-    - blank: A boolean indicating whether to return a blank figure.
-    - fontsize: The fontsize for the annotations.
-    - unit_size: The size of each subplot in units.
-    - param_plot_proportion: The proportion of the plot dedicated to parameter labels.
+    Args:
+        plotting_function (callable): The function used to plot on each subplot.
+        param_info_dict (dict, optional): A dictionary containing information about the parameters for hyperparameter search. Defaults to None.
+        plotting_dict (dict, optional): A dictionary containing information for plotting. Defaults to None.
+        hyperparam_search (bool, optional): A boolean indicating whether hyperparameter search is enabled. Defaults to False.
+        plot_all (bool, optional): A boolean indicating whether to plot all partitions. Defaults to False.
+        blank (bool, optional): A boolean indicating whether to return a blank figure. Defaults to False.
+        fontsize (int, optional): The fontsize for the annotations. Defaults to 35.
+        unit_size (int, optional): The size of each subplot in units. Defaults to 10.
+        param_plot_proportion (float, optional): The proportion of the plot dedicated to parameter labels. Defaults to 0.20.
 
     Returns:
-    - fig: The created figure object.
+        matplotlib.figure.Figure: The created figure object.
     """
-
     if hyperparam_search is True:
         param_dict = param_info_dict["param_dict"]
 
@@ -324,17 +328,16 @@ def general_plotting_function(
 
 
 def get_legend(adata: ad.AnnData, color_name: str, label_name: str = None):
-    """get patches from adata.obs[color_name] to be used for creating a legend and returns the list of colors as well
+    """
+    Get patches from adata.obs[color_name] to be used for creating a legend and returns the list of colors as well.
 
     Args:
-        adata (ad.AnnData): AnnData object
-        color (str): name of the anndata obs column to use for coloring (i.e.'cell_line_colors')
-            The labels for the legend will gotten by removing the last underscore and the last word from the color name (i.e. 'cell_line')
-            This will be used to find the obs columns that contain the labels for the legend
+        adata (ad.AnnData): AnnData object.
+        color_name (str): Name of the anndata obs column to use for coloring (i.e., 'cell_line_colors').
+        label_name (str, optional): The name of the label column. Defaults to None.
 
     Returns:
-        List[mpatches.Patch], List :patches that will be used to create the legend using matplotlib.pyplot.legend()
-                                    and the list of colors corresponding to the color name obs column
+        tuple: A tuple containing a list of patches for the legend and the list of colors.
     """
     colors = adata.obs_vector(color_name)
 
@@ -368,20 +371,20 @@ def combine_Lof_plots(
     """
     Combines a list of matplotlib figures into a single figure with specified dimensions.
 
-    Parameters:
-    - Lof_plots (List[mpl.figure.Figure]): List of matplotlib figures to be combined. If `inline` is True, this parameter is ignored.
-    - fig_dims (tuple): Dimensions of the final combined figure in terms of number of rows and columns.
-    - default_padding (tuple): Padding to be applied to each figure in terms of number of rows and columns.
-    - default_padding_color (tuple): Color value (RGB) to be used for the default padding.
-    - save_path (str): Path to save the combined figure. If not provided, the figure will be displayed.
-    - title_kwargs (dict): Keyword arguments for customizing the title of the combined figure.
-    - title (str): Title of the combined figure.
-    - inline (bool): If True, the function will automatically retrieve all open figures and combine them. The `Lof_plots` parameter will be ignored.
+    Args:
+        list_of_plots (list[mpl.figure.Figure], optional): List of matplotlib figures to be combined. Defaults to None.
+        fig_dims (tuple, optional): Dimensions of the final combined figure in terms of number of rows and columns. Defaults to None.
+        default_padding (tuple, optional): Padding to be applied to each figure in terms of number of rows and columns. Defaults to (0, 0).
+        default_padding_color (tuple, optional): Color value (RGB) to be used for the default padding. Defaults to 255.
+        unit_size (int, optional): The size of each unit in the plot. Defaults to 5.
+        save_path (str, optional): Path to save the combined figure. Defaults to None.
+        title_kwargs (dict, optional): Keyword arguments for customizing the title of the combined figure. Defaults to None.
+        title (str, optional): Title of the combined figure. Defaults to None.
+        inline (bool, optional): If True, the function will automatically retrieve all open figures and combine them. Defaults to False.
 
     Returns:
-     - None
+        None
     """
-
     if inline:
         list_of_plots = [
             manager.canvas.figure

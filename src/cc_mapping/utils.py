@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import anndata as ad
 from collections import Counter
 from math import floor
 
@@ -13,25 +14,25 @@ def get_str_idx(
     regex: bool = False,
     regex_flags: list[str] = None,
 ) -> list[np.ndarray]:
-    """Takes in a string or list of strings and returns the indices and
-        the names of the matching strings in the string list
-        Regex can be used to find strings that match a pattern
+    """
+    Takes in a string or list of strings and returns the indices and the names of the matching strings in the string list.
+    Regex can be used to find strings that match a pattern.
 
-        If the string list contains no duplicates, then a dictionary is used to speed up the search
-        when searching for multiple strings
+    If the string list contains no duplicates, then a dictionary is used to speed up the search when searching for multiple strings.
 
     Args:
-        str_to_find (str, list, np.ndarray): a str or iterable of strings to search for
-        string_list (list, np.ndarray): a iterable of strings to search through
-        regex (bool, optional): bool to control the use of regular expressions during the search. Defaults to False.
+        strings_to_find (str | list[str] | np.ndarray[str]): A string or iterable of strings to search for.
+        string_list (list[str] | np.ndarray[str]): An iterable of strings to search through.
+        regex (bool, optional): Whether to use regular expressions for searching. Defaults to False.
+        regex_flags (list[str], optional): List of regex flags to use if regex is True. Defaults to None.
 
     Raises:
-        ValueError: if the search array contains duplicate strings
+        ValueError: If the search array contains duplicate strings.
+        ValueError: If the string list contains non-string elements.
 
     Returns:
-        (np.ndarray, np.ndarray): indices and names of the matching strings in the string list
+        list[np.ndarray]: Indices and names of the matching strings in the string list.
     """
-
     if regex:
         reFlags = []
         for flag in regex_flags:
@@ -88,17 +89,17 @@ def get_str_idx(
     return feature_idxs, feature_names
 
 
-def equalize_conditions(adata, obs_str, ignore_min_list=None):
+def equalize_conditions(adata: ad.AnnData, obs_str: str, ignore_min_list: list[str] = None) -> ad.AnnData:
     """
     Equalizes the conditions in the given AnnData object based on the specified observation string.
 
-    Parameters:
-        adata (AnnData): The AnnData object containing the data.
+    Args:
+        adata (ad.AnnData): The AnnData object containing the data.
         obs_str (str): The observation string specifying the condition to equalize.
-        ignore_min_list (list, optional): A list of observation values to ignore when equalizing. Defaults to None.
+        ignore_min_list (list[str], optional): A list of observation values to ignore when equalizing. Defaults to None.
 
     Returns:
-        AnnData: The modified AnnData object with equalized conditions.
+        ad.AnnData: The modified AnnData object with equalized conditions.
     """
     obs_values = adata.obs[obs_str].copy()
 
@@ -126,20 +127,19 @@ def equalize_conditions(adata, obs_str, ignore_min_list=None):
 
 
 def equalize_within_two_conditions(
-    adata, first_obs_str, second_obs_str, ignore_min_list=None
-):
+    adata: ad.AnnData, first_obs_str: str, second_obs_str: str, ignore_min_list: list[str] = None
+) -> ad.AnnData:
     """
     Equalizes the number of observations within two conditions in a single-cell dataset.
 
-    Parameters:
-        adata (AnnData): Annotated data matrix.
+    Args:
+        adata (ad.AnnData): Annotated data matrix.
         first_obs_str (str): Name of the first condition.
         second_obs_str (str): Name of the second condition.
-        ignore_min_list (list, optional): List of observation values to ignore when calculating the minimum count. Defaults to None.
+        ignore_min_list (list[str], optional): List of observation values to ignore when calculating the minimum count. Defaults to None.
 
     Returns:
-        AnnData: Annotated data matrix with equalized observations.
-
+        ad.AnnData: Annotated data matrix with equalized observations.
     """
     f_obs_values = adata.obs[first_obs_str].copy()
     f_obs_counts = Counter(f_obs_values)
@@ -187,7 +187,7 @@ def equalize_within_two_conditions(
 
                 difference = f_obs_per_s_obs - s_obs_count
 
-                # if a s_obs_key does not have enought observations, then we need to add the differece to the total needed from the other s_obs_keys
+                # if a s_obs_key does not have enough observations, then we need to add the difference to the total needed from the other s_obs_keys
                 # TODO: this can lead to a situation where the last s_obs_key may not have enough observations to equalize the conditions
                 f_obs_per_s_obs += floor(difference / num_unique_s_obs_values - idx)
 
