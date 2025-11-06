@@ -825,4 +825,124 @@ class GMMThresholding(GaussianMixtureModelBase):
         
         return fig, (ax_strip, ax_hist)
 
+    def determine_optimal_components(
+        self,
+        component_range: int,
+        metric: str = "bic",
+        curve: str = "convex",
+        direction: str = "decreasing",
+        return_bic_list: bool = False,
+    ) -> Union[int, tuple]:
+        """Determine the optimal number of GMM components for this feature.
+        
+        This is a convenience wrapper that automatically uses the instance's 
+        adata, feature, layer, and gmm_kwargs attributes.
+        
+        Parameters
+        ----------
+        component_range : int
+            Maximum number of components to test.
+        metric : str, optional
+            Metric to use for optimization (currently only 'bic' supported).
+            Defaults to 'bic'.
+        curve : str, optional
+            Type of curve for knee detection ('convex' or 'concave'). 
+            Defaults to 'convex'.
+        direction : str, optional
+            Direction of curve ('decreasing' or 'increasing'). 
+            Defaults to 'decreasing'.
+        return_bic_list : bool, optional
+            If True, returns tuple of (optimal_n, bic_list). Defaults to False.
+            
+        Returns
+        -------
+        int or tuple
+            Optimal number of components, or tuple of (optimal_n, bic_list) 
+            if return_bic_list=True.
+        
+        Examples
+        --------
+        Find optimal number of components::
+        
+            gmm = GMMThresholding(
+                adata=adata,
+                feature='cycD1 (nuc median)',
+                label_obs_save_str='cell_cycle'
+            )
+            optimal_n = gmm.determine_optimal_components(
+                component_range=5
+            )
+            print(f'Optimal components: {optimal_n}')
+        """
+        return super().determine_optimal_number_components(
+            adata=self.adata,
+            feature=self.feature,
+            component_range=component_range,
+            layer=self.layer,
+            gmm_kwargs=self.gmm_kwargs,
+            metric=metric,
+            curve=curve,
+            direction=direction,
+            return_bic_list=return_bic_list,
+        )
+
+    def plot_bic_curve(
+        self,
+        component_range: int,
+        curve: str = "convex",
+        direction: str = "decreasing",
+        ax: Optional[plt.Axes] = None,
+        save_path: Optional[Union[str, Path]] = None,
+    ) -> None:
+        """Plot the Bayesian Information Criterion (BIC) curve.
+        
+        This is a convenience wrapper that automatically uses the instance's
+        adata, feature, layer, and gmm_kwargs attributes.
+        
+        Parameters
+        ----------
+        component_range : int
+            Maximum number of components to test.
+        curve : str, optional
+            Type of curve for knee detection ('convex' or 'concave'). 
+            Defaults to 'convex'.
+        direction : str, optional
+            Direction of curve ('decreasing' or 'increasing'). 
+            Defaults to 'decreasing'.
+        ax : plt.Axes, optional
+            Matplotlib axes to plot on. If None, creates new figure. 
+            Defaults to None.
+        save_path : str or Path, optional
+            Path to save the figure. Parent directory must exist. 
+            Defaults to None.
+        
+        Raises
+        ------
+        FileNotFoundError
+            If save_path parent directory doesn't exist.
+        
+        Examples
+        --------
+        Plot BIC curve to determine optimal components::
+        
+            gmm = GMMThresholding(
+                adata=adata,
+                feature='cycD1 (nuc median)',
+                label_obs_save_str='cell_cycle'
+            )
+            gmm.plot_bic_curve(component_range=5)
+            plt.show()
+        """
+        super().plot_bayesian_information_criterion_curve(
+            adata=self.adata,
+            feature=self.feature,
+            component_range=component_range,
+            layer=self.layer,
+            gmm_kwargs=self.gmm_kwargs,
+            curve=curve,
+            direction=direction,
+            ax=ax,
+            save_path=save_path,
+        )
+
 

@@ -16,10 +16,12 @@
       :nosignatures:
    
       ~GMMThresholding.categorize_samples
+      ~GMMThresholding.determine_optimal_components
       ~GMMThresholding.determine_optimal_number_components
       ~GMMThresholding.fit
       ~GMMThresholding.generate_thresholding_report
       ~GMMThresholding.plot_bayesian_information_criterion_curve
+      ~GMMThresholding.plot_bic_curve
       ~GMMThresholding.plot_feature_distribution_exploratory
       ~GMMThresholding.plot_feature_strip_plot_exploratory
       ~GMMThresholding.plot_hist_distribution_with_boundaries

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "cc-mapping"
-version = "0.1.0"
+version = "0.1.1"
 description = "Gaussian Mixture Model-based thresholding for single-cell gene expression analysis"
 authors = ["ddpoe <dap182@pitt.edu>"]
 readme = "README.md"
@@ -8,7 +8,7 @@ packages = [{include = "cc_mapping", from = "src"}]
 license = "MIT"
 homepage = "https://github.com/StallaertLab/cc_mapping"
 repository = "https://github.com/StallaertLab/cc_mapping"
-documentation = "https://github.com/StallaertLab/cc_mapping"
+documentation = "https://cc-mapping.readthedocs.io"
 keywords = [
     "single-cell",
     "gaussian-mixture-model",
@@ -65,8 +65,6 @@ myst-nb = "^1.3.0"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# Temporarily ignore test_utils.py until function signatures are updated
-addopts = "--ignore=tests/thresholding/test_utils.py"
 
 [build-system]
 requires = ["poetry-core"]
