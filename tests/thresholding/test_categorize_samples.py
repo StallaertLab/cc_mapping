@@ -1,4 +1,4 @@
-"""Tests for the categorize_samples method of GaussianMixtureModelThresholding.
+"""Tests for the categorize_samples method of GMMThresholding.
 
 This module tests the core categorization logic including default behavior,
 label assignment, and basic validation. More specific tests for label collapsing
@@ -6,7 +6,7 @@ and manual thresholds are in their dedicated test modules.
 """
 
 import pytest
-from src.cc_mapping.thresholding import GaussianMixtureModelThresholding
+from src.cc_mapping.thresholding import GMMThresholding
 
 
 def test_categorize_samples_default_success(sample_gmm_thresholding_instance):

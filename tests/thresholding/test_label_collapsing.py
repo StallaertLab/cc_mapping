@@ -1,4 +1,4 @@
-"""Tests for duplicate label collapsing functionality in GaussianMixtureModelThresholding.
+"""Tests for duplicate label collapsing functionality in GMMThresholding.
 
 This module tests the ability to collapse multiple GMM components into fewer
 categories by using duplicate labels. This is useful for cross-dataset robustness
@@ -7,7 +7,7 @@ where many components provide adaptive boundaries but fewer categories are desir
 
 import pytest
 import numpy as np
-from src.cc_mapping.thresholding import GaussianMixtureModelThresholding
+from src.cc_mapping.thresholding import GMMThresholding
 
 
 ### Basic Label Collapsing Tests ###

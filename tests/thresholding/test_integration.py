@@ -1,4 +1,4 @@
-"""Integration tests for GaussianMixtureModelThresholding workflows.
+"""Integration tests for GMMThresholding workflows.
 
 This module tests end-to-end workflows combining multiple features:
 fit → categorize → plot, with various combinations of automatic/manual
@@ -8,7 +8,7 @@ Priority 3 - To be implemented after Priority 1 & 2 tests pass.
 """
 
 import pytest
-from src.cc_mapping.thresholding import GaussianMixtureModelThresholding
+from src.cc_mapping.thresholding import GMMThresholding
 
 # TODO: Add tests for:
 # - Complete workflow: fit → automatic categorize → plot

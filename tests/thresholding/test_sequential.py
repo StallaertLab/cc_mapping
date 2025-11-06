@@ -1,5 +1,5 @@
 """
-Tests for SequentialGaussianMixtureModelThresholding class.
+Tests for SequentialGMM class.
 
 This module tests the sequential thresholding functionality including:
 - Initialization
@@ -16,7 +16,7 @@ import pandas as pd
 import anndata as ad
 from collections import OrderedDict
 
-from cc_mapping.thresholding import SequentialGaussianMixtureModelThresholding
+from cc_mapping.thresholding import SequentialGMM
 
 
 # =====================
@@ -84,11 +84,11 @@ def adata_with_bimodal_dist():
 # =====================
 
 class TestInitialization:
-    """Test SequentialGaussianMixtureModelThresholding initialization."""
+    """Test SequentialGMM initialization."""
     
     def test_init_success_defaults(self, basic_adata):
         """Test successful initialization with default parameters."""
-        seq_gmm = SequentialGaussianMixtureModelThresholding(adata=basic_adata)
+        seq_gmm = SequentialGMM(adata=basic_adata)
         
         assert seq_gmm.adata is not None
         assert seq_gmm.adata.shape == basic_adata.shape
@@ -100,7 +100,7 @@ class TestInitialization:
     
     def test_init_success_custom_key(self, basic_adata):
         """Test initialization with custom .uns key."""
-        seq_gmm = SequentialGaussianMixtureModelThresholding(
+        seq_gmm = SequentialGMM(
             adata=basic_adata,
             thresholding_events_key='my_custom_key'
         )
@@ -112,7 +112,7 @@ class TestInitialization:
     def test_init_success_custom_gmm_kwargs(self, basic_adata):
         """Test initialization with custom GMM kwargs."""
         custom_kwargs = {'covariance_type': 'diag', 'max_iter': 200}
-        seq_gmm = SequentialGaussianMixtureModelThresholding(
+        seq_gmm = SequentialGMM(
             adata=basic_adata,
             gmm_kwargs=custom_kwargs
         )
@@ -123,19 +123,19 @@ class TestInitialization:
         """Test initialization with existing .uns key (should not error)."""
         basic_adata.uns['sequential_gmm_thresholding_events'] = OrderedDict()
         
-        seq_gmm = SequentialGaussianMixtureModelThresholding(adata=basic_adata)
+        seq_gmm = SequentialGMM(adata=basic_adata)
         
         assert 'sequential_gmm_thresholding_events' in seq_gmm.adata.uns
     
     def test_init_error_not_anndata(self):
         """Test initialization fails with non-AnnData object."""
         with pytest.raises(TypeError, match="adata must be an AnnData.AnnData object"):
-            SequentialGaussianMixtureModelThresholding(adata="not_anndata")
+            SequentialGMM(adata="not_anndata")
     
     def test_init_error_invalid_thresholding_key_type(self, basic_adata):
         """Test initialization fails with non-string thresholding_events_key."""
         with pytest.raises(TypeError, match="thresholding_events_key must be a string"):
-            SequentialGaussianMixtureModelThresholding(
+            SequentialGMM(
                 adata=basic_adata,
                 thresholding_events_key=123
             )
@@ -143,7 +143,7 @@ class TestInitialization:
     def test_init_error_empty_thresholding_key(self, basic_adata):
         """Test initialization fails with empty thresholding_events_key."""
         with pytest.raises(ValueError, match="thresholding_events_key cannot be an empty string"):
-            SequentialGaussianMixtureModelThresholding(
+            SequentialGMM(
                 adata=basic_adata,
                 thresholding_events_key=""
             )
@@ -153,12 +153,12 @@ class TestInitialization:
         basic_adata.uns['sequential_gmm_thresholding_events'] = {}  # dict, not OrderedDict
         
         with pytest.raises(TypeError, match="must be an OrderedDict"):
-            SequentialGaussianMixtureModelThresholding(adata=basic_adata)
+            SequentialGMM(adata=basic_adata)
     
     def test_init_error_invalid_gmm_kwargs_type(self, basic_adata):
         """Test initialization fails with non-dict gmm_kwargs."""
         with pytest.raises(TypeError, match="gmm_kwargs must be a dictionary"):
-            SequentialGaussianMixtureModelThresholding(
+            SequentialGMM(
                 adata=basic_adata,
                 gmm_kwargs="not_a_dict"
             )
@@ -173,7 +173,7 @@ class TestThresholdEntireDataset:
     
     def test_threshold_entire_dataset_success(self, adata_with_bimodal_dist):
         """Test successful thresholding of entire dataset."""
-        seq_gmm = SequentialGaussianMixtureModelThresholding(adata=adata_with_bimodal_dist)
+        seq_gmm = SequentialGMM(adata=adata_with_bimodal_dist)
         
         seq_gmm.threshold_entire_dataset(
             feature='DNA',
@@ -200,7 +200,7 @@ class TestThresholdEntireDataset:
     
     def test_threshold_entire_dataset_with_manual_thresholds(self, adata_with_bimodal_dist):
         """Test thresholding with manual thresholds."""
-        seq_gmm = SequentialGaussianMixtureModelThresholding(adata=adata_with_bimodal_dist)
+        seq_gmm = SequentialGMM(adata=adata_with_bimodal_dist)
         
         seq_gmm.threshold_entire_dataset(
             feature='DNA',
@@ -216,7 +216,7 @@ class TestThresholdEntireDataset:
     
     def test_threshold_entire_dataset_with_duplicate_labels(self, adata_with_bimodal_dist):
         """Test thresholding with duplicate labels (label collapsing)."""
-        seq_gmm = SequentialGaussianMixtureModelThresholding(adata=adata_with_bimodal_dist)
+        seq_gmm = SequentialGMM(adata=adata_with_bimodal_dist)
         
         seq_gmm.threshold_entire_dataset(
             feature='DNA',
@@ -232,7 +232,7 @@ class TestThresholdEntireDataset:
     
     def test_threshold_entire_dataset_error_no_operation_name(self, basic_adata):
         """Test error when operation_name is None."""
-        seq_gmm = SequentialGaussianMixtureModelThresholding(adata=basic_adata)
+        seq_gmm = SequentialGMM(adata=basic_adata)
         
         with pytest.raises(ValueError, match="operation_name is required"):
             seq_gmm.threshold_entire_dataset(
@@ -245,7 +245,7 @@ class TestThresholdEntireDataset:
     
     def test_threshold_entire_dataset_error_duplicate_operation_name(self, adata_with_bimodal_dist):
         """Test error when operation_name already exists."""
-        seq_gmm = SequentialGaussianMixtureModelThresholding(adata=adata_with_bimodal_dist)
+        seq_gmm = SequentialGMM(adata=adata_with_bimodal_dist)
         
         # First operation
         seq_gmm.threshold_entire_dataset(
@@ -276,7 +276,7 @@ class TestRefineLabelsWithGMM:
     
     def test_refine_labels_success(self, adata_with_bimodal_dist):
         """Test successful label refinement."""
-        seq_gmm = SequentialGaussianMixtureModelThresholding(adata=adata_with_bimodal_dist)
+        seq_gmm = SequentialGMM(adata=adata_with_bimodal_dist)
         
         # Initial thresholding
         seq_gmm.threshold_entire_dataset(
@@ -315,7 +315,7 @@ class TestRefineLabelsWithGMM:
     
     def test_refine_labels_error_no_operation_name(self, adata_with_bimodal_dist):
         """Test error when operation_name is None."""
-        seq_gmm = SequentialGaussianMixtureModelThresholding(adata=adata_with_bimodal_dist)
+        seq_gmm = SequentialGMM(adata=adata_with_bimodal_dist)
         
         # Create initial labels
         seq_gmm.threshold_entire_dataset(
@@ -338,7 +338,7 @@ class TestRefineLabelsWithGMM:
     
     def test_refine_labels_error_obs_label_not_found(self, basic_adata):
         """Test error when obs_label doesn't exist."""
-        seq_gmm = SequentialGaussianMixtureModelThresholding(adata=basic_adata)
+        seq_gmm = SequentialGMM(adata=basic_adata)
         
         with pytest.raises(KeyError, match="not found in adata.obs"):
             seq_gmm.refine_labels_with_gmm(
@@ -352,7 +352,7 @@ class TestRefineLabelsWithGMM:
     
     def test_refine_labels_error_value_not_found(self, adata_with_bimodal_dist):
         """Test error when value_to_refine doesn't exist."""
-        seq_gmm = SequentialGaussianMixtureModelThresholding(adata=adata_with_bimodal_dist)
+        seq_gmm = SequentialGMM(adata=adata_with_bimodal_dist)
         
         # Create initial labels
         seq_gmm.threshold_entire_dataset(
@@ -383,7 +383,7 @@ class TestRefineLabelsWithManualThresholds:
     
     def test_refine_manual_success(self, adata_with_bimodal_dist):
         """Test successful manual threshold refinement."""
-        seq_gmm = SequentialGaussianMixtureModelThresholding(adata=adata_with_bimodal_dist)
+        seq_gmm = SequentialGMM(adata=adata_with_bimodal_dist)
         
         # Initial thresholding
         seq_gmm.threshold_entire_dataset(
@@ -420,7 +420,7 @@ class TestRefineLabelsWithManualThresholds:
     
     def test_refine_manual_error_wrong_threshold_count(self, adata_with_bimodal_dist):
         """Test error when threshold count doesn't match labels."""
-        seq_gmm = SequentialGaussianMixtureModelThresholding(adata=adata_with_bimodal_dist)
+        seq_gmm = SequentialGMM(adata=adata_with_bimodal_dist)
         
         # Initial thresholding
         seq_gmm.threshold_entire_dataset(
@@ -451,7 +451,7 @@ class TestReturnAdata:
     
     def test_return_adata(self, adata_with_bimodal_dist):
         """Test return_adata returns modified object."""
-        seq_gmm = SequentialGaussianMixtureModelThresholding(adata=adata_with_bimodal_dist)
+        seq_gmm = SequentialGMM(adata=adata_with_bimodal_dist)
         
         seq_gmm.threshold_entire_dataset(
             feature='DNA',
@@ -477,7 +477,7 @@ class TestIntegration:
     
     def test_full_sequential_workflow(self, adata_with_bimodal_dist):
         """Test complete sequential thresholding workflow."""
-        seq_gmm = SequentialGaussianMixtureModelThresholding(adata=adata_with_bimodal_dist)
+        seq_gmm = SequentialGMM(adata=adata_with_bimodal_dist)
         
         # Step 1: Initial thresholding on DNA
         seq_gmm.threshold_entire_dataset(

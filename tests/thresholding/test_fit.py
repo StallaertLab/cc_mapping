@@ -1,11 +1,11 @@
-"""Tests for the fit method of GaussianMixtureModelThresholding.
+"""Tests for the fit method of GMMThresholding.
 
 This module tests GMM fitting functionality, including successful fits,
 validation of n_components parameter, and proper storage of fit results.
 """
 
 import pytest
-from src.cc_mapping.thresholding import GaussianMixtureModelThresholding
+from src.cc_mapping.thresholding import GMMThresholding
 
 
 def test_fit_success(sample_adata, sample_gmm_thresholding_instance):
@@ -43,7 +43,7 @@ def test_fit_invalid_n_components(
     expected_exception,
     match_pattern,
 ):
-    """Test if the GaussianMixtureModelThresholding raises exceptions for invalid n_components type."""
+    """Test if the GMMThresholding raises exceptions for invalid n_components type."""
     gmm = sample_gmm_thresholding_instance
     with pytest.raises(expected_exception, match=match_pattern):
         gmm.fit(n_components=invalid_n_components)

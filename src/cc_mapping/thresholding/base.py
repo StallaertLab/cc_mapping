@@ -37,18 +37,25 @@ def _validate_save_path(save_path: Optional[Union[str, Path]]) -> Optional[Path]
     """
     Validate that the directory of the save_path exists.
     
-    Args:
-        save_path: Path where the figure should be saved. Can be str or Path.
+    Parameters
+    ----------
+    save_path : str or Path or None
+        Path where the figure should be saved. Can be str or Path.
         
-    Returns:
+    Returns
+    -------
+    Path or None
         Path object if save_path is provided, None otherwise.
         
-    Raises:
-        FileNotFoundError: If the parent directory of save_path doesn't exist.
+    Raises
+    ------
+    FileNotFoundError
+        If the parent directory of save_path doesn't exist.
         
-    Example:
-        >>> path = _validate_save_path('results/sequential/figure.png')
-        >>> # Raises error if 'results/sequential/' doesn't exist
+    Examples
+    --------
+    >>> path = _validate_save_path('results/sequential/figure.png')
+    >>> # Raises error if 'results/sequential/' doesn't exist
     """
     if save_path is None:
         return None
@@ -66,7 +73,26 @@ def _validate_save_path(save_path: Optional[Union[str, Path]]) -> Optional[Path]
 
 
 class _GaussianMixtureModelInfo(BaseModel):
-    """Model to store Gaussian Mixture Model (GMM) information."""
+    """
+    Model to store Gaussian Mixture Model (GMM) information.
+    
+    Attributes
+    ----------
+    gmm_kwargs : dict or None
+        Keyword arguments used for the Gaussian Mixture Model.
+    means : list of float or None
+        Means of the GMM components.
+    covs : list of float or None
+        Covariances of the GMM components.
+    weights : list of float or None
+        Weights of the GMM components.
+    n_components : int or None
+        Number of GMM components.
+    data_probs : list of list of float or None
+        Probability of each data point belonging to each gmm component.
+    condensed_data_probs : list of list of float or None
+        Condensed data probabilities after handling duplicates (optional).
+    """
 
     gmm_kwargs: Optional[Dict] = Field(
         default=None,
@@ -98,6 +124,16 @@ class _GaussianMixtureModelInfo(BaseModel):
     def convert_numpy_to_list(cls, value):
         """
         Converts NumPy arrays to lists for Pydantic validation/serialization.
+        
+        Parameters
+        ----------
+        value : any
+            Value to convert.
+            
+        Returns
+        -------
+        any
+            Converted value (list if input was numpy array, otherwise unchanged).
         """
         if isinstance(value, np.ndarray):
             return value.tolist()
@@ -105,13 +141,37 @@ class _GaussianMixtureModelInfo(BaseModel):
     
 
 class _DecisionBoundariesModel(BaseModel):
-    """Model to store decision boundary information."""
+    """
+    Model to store decision boundary information.
+    
+    Attributes
+    ----------
+    thresholds : list of float
+        List of decision boundary thresholds.
+    """
 
     thresholds: List[float] = Field(description="List of decision boundary thresholds.")
 
 
 class _SingleThresholdingEventModel(BaseModel):
-    """Model to store all information for a single thresholding event."""
+    """
+    Model to store all information for a single thresholding event.
+    
+    Attributes
+    ----------
+    gmm_info : _GaussianMixtureModelInfo or None
+        Gaussian Mixture Model information.
+    ordered_gmm_labels : list of str or None
+        Ordered labels corresponding to the gmm components.
+    decision_boundaries : _DecisionBoundariesModel or None
+        Decision boundary information (optional).
+    condensed_labels : list of str or None
+        Condensed labels after handling duplicates (optional).
+    feature_name : str
+        Name of the feature that was thresholded.
+    gmm_obs_label : str
+        Observation label in anndata object to store gmm phase labels.
+    """
 
     gmm_info: Optional[_GaussianMixtureModelInfo] = Field(
         description="Gaussian Mixture Model information.",
@@ -140,8 +200,8 @@ class GaussianMixtureModelBase:
     
     This class contains utility methods and plotting functions that are common
     to both single-dataset thresholding and sequential refinement operations.
-    It should not be instantiated directly; use GaussianMixtureModelThresholding
-    or SequentialGaussianMixtureModelThresholding instead.
+    It should not be instantiated directly; use GMMThresholding
+    or SequentialGMM instead.
     
     The class provides:
     - Utility methods for data manipulation and label handling
@@ -151,7 +211,19 @@ class GaussianMixtureModelBase:
     """
 
     def _ensure_list(self, value: any) -> list:
-        """Ensures that the input value is a list."""
+        """
+        Ensures that the input value is a list.
+        
+        Parameters
+        ----------
+        value : any
+            Value to convert to list.
+            
+        Returns
+        -------
+        list
+            Input value as a list.
+        """
         if isinstance(value, list):
             return value
         return [value.item()] if hasattr(value, "item") else [value]
@@ -159,12 +231,26 @@ class GaussianMixtureModelBase:
     def _handle_duplicate_labels(
         self, data_probs: np.ndarray, ordered_gmm_labels: list
     ) -> tuple:
-        """Handles duplicate labels in the gmm results."""
+        """
+        Handles duplicate labels in the gmm results.
+        
+        Parameters
+        ----------
+        data_probs : np.ndarray
+            Probability matrix (samples x components).
+        ordered_gmm_labels : list
+            List of label names for each component.
+            
+        Returns
+        -------
+        tuple of (np.ndarray, list)
+            Condensed probability matrix and condensed label list.
+        """
         df_probs = pd.DataFrame(data_probs, columns=ordered_gmm_labels)
         # Use sort=False to preserve the original order of labels
-        grouped = df_probs.groupby(level=0, axis=1, sort=False)
-        condensed_data_probs = grouped.max().values
-        condensed_labels = grouped.first().columns.tolist()
+        grouped = df_probs.T.groupby(level=0, sort=False)
+        condensed_data_probs = grouped.max().T.values
+        condensed_labels = grouped.first().index.tolist()
         return condensed_data_probs, condensed_labels
 
     def _calculate_decision_boundaries_from_probs(
@@ -173,25 +259,34 @@ class GaussianMixtureModelBase:
         data_probs: np.ndarray,
         ordered_labels: list[str] | None = None
     ) -> _DecisionBoundariesModel:
-        """Calculate decision boundaries from any probability array.
+        """
+        Calculate decision boundaries from any probability array.
         
         This method works with both original GMM probabilities and condensed
         probabilities from collapsed labels. It finds class transitions and
         calculates threshold midpoints.
         
-        Args:
-            feature_values: Array of feature values for all samples.
-            data_probs: Probability matrix (samples x components) from GMM or
-                condensed from duplicate label collapsing.
-            ordered_labels: Optional list of label names corresponding to components.
-                If provided, used to make warning messages more interpretable.
+        Parameters
+        ----------
+        feature_values : np.ndarray
+            Array of feature values for all samples.
+        data_probs : np.ndarray
+            Probability matrix (samples x components) from GMM or
+            condensed from duplicate label collapsing.
+        ordered_labels : list of str or None, optional
+            List of label names corresponding to components.
+            If provided, used to make warning messages more interpretable.
                 
-        Returns:
-            _DecisionBoundariesModel containing calculated thresholds.
+        Returns
+        -------
+        _DecisionBoundariesModel
+            Contains calculated thresholds.
             
-        Warns:
-            UserWarning: If backward transitions are detected (likely due to outliers
-                or overlapping components).
+        Warns
+        -----
+        UserWarning
+            If backward transitions are detected (likely due to outliers
+            or overlapping components).
         """
         # Sort feature values and get sort indices
         sort_index = np.argsort(feature_values)
@@ -269,17 +364,26 @@ class GaussianMixtureModelBase:
         layer: Optional[str],
         gmm_kwargs: dict,
     ) -> List[Union[int, float]]:
-        """Runs Bayesian Information Criterion (BIC) on the gene expression data.
+        """
+        Run Bayesian Information Criterion (BIC) on the gene expression data.
         
-        Args:
-            adata: AnnData object containing the data.
-            feature: Name of the feature to analyze.
-            component_range: Maximum number of components to test (tests 1 to component_range).
-            layer: Optional layer name to use instead of .X.
-            gmm_kwargs: Keyword arguments for GaussianMixture.
+        Parameters
+        ----------
+        adata : ad.AnnData
+            AnnData object containing the data.
+        feature : str
+            Name of the feature to analyze.
+        component_range : int
+            Maximum number of components to test (tests 1 to component_range).
+        layer : str or None
+            Optional layer name to use instead of .X.
+        gmm_kwargs : dict
+            Keyword arguments for GaussianMixture.
             
-        Returns:
-            List of BIC values for each number of components tested.
+        Returns
+        -------
+        list of (int or float)
+            BIC values for each number of components tested.
         """
         if not isinstance(component_range, int):
             raise ValueError("component_range must be an integer.")
@@ -311,21 +415,39 @@ class GaussianMixtureModelBase:
         direction: str = "decreasing",
         return_bic_list: bool = False,
     ) -> Union[int, Tuple[int, List[Union[int, float]]]]:
-        """Determines the optimal number of components for the GMM.
+        """
+        Determine the optimal number of components for the GMM.
         
-        Args:
-            adata: AnnData object containing the data.
-            feature: Name of the feature to analyze.
-            component_range: Maximum number of components to test.
-            layer: Optional layer name to use instead of .X.
-            gmm_kwargs: Keyword arguments for GaussianMixture. If None, uses defaults.
-            metric: Metric to use for optimization (currently only 'bic' supported).
-            curve: Type of curve for knee detection ('convex' or 'concave').
-            direction: Direction of curve ('decreasing' or 'increasing').
-            return_bic_list: If True, returns tuple of (optimal_n, bic_list).
+        Parameters
+        ----------
+        adata : ad.AnnData
+            AnnData object containing the data.
+        feature : str
+            Name of the feature to analyze.
+        component_range : int
+            Maximum number of components to test.
+        layer : str or None, optional
+            Optional layer name to use instead of .X. Default is None.
+        gmm_kwargs : dict or None, optional
+            Keyword arguments for GaussianMixture. If None, uses defaults. 
+            Default is None.
+        metric : str, optional
+            Metric to use for optimization (currently only 'bic' supported).
+            Default is 'bic'.
+        curve : str, optional
+            Type of curve for knee detection ('convex' or 'concave'). 
+            Default is 'convex'.
+        direction : str, optional
+            Direction of curve ('decreasing' or 'increasing'). 
+            Default is 'decreasing'.
+        return_bic_list : bool, optional
+            If True, returns tuple of (optimal_n, bic_list). Default is False.
             
-        Returns:
-            Optimal number of components, or tuple of (optimal_n, bic_list) if return_bic_list=True.
+        Returns
+        -------
+        int or tuple of (int, list of (int or float))
+            Optimal number of components, or tuple of (optimal_n, bic_list) 
+            if return_bic_list=True.
         """
         if not isinstance(component_range, int):
             raise ValueError("component_range must be an integer.")
@@ -362,21 +484,39 @@ class GaussianMixtureModelBase:
         ax: plt.Axes = None,
         save_path: Optional[Union[str, Path]] = None,
     ) -> None:
-        """Plots the BIC curve.
+        """
+        Plot the BIC curve.
         
-        Args:
-            adata: AnnData object containing the data.
-            feature: Name of the feature to analyze.
-            component_range: Maximum number of components to test.
-            layer: Optional layer name to use instead of .X.
-            gmm_kwargs: Keyword arguments for GaussianMixture. If None, uses defaults.
-            curve: Type of curve for knee detection ('convex' or 'concave').
-            direction: Direction of curve ('decreasing' or 'increasing').
-            ax: Optional matplotlib axes to plot on. If None, creates new figure.
-            save_path: Optional path to save the figure. Parent directory must exist.
+        Parameters
+        ----------
+        adata : ad.AnnData
+            AnnData object containing the data.
+        feature : str
+            Name of the feature to analyze.
+        component_range : int
+            Maximum number of components to test.
+        layer : str or None, optional
+            Optional layer name to use instead of .X. Default is None.
+        gmm_kwargs : dict or None, optional
+            Keyword arguments for GaussianMixture. If None, uses defaults. 
+            Default is None.
+        curve : str, optional
+            Type of curve for knee detection ('convex' or 'concave'). 
+            Default is 'convex'.
+        direction : str, optional
+            Direction of curve ('decreasing' or 'increasing'). 
+            Default is 'decreasing'.
+        ax : matplotlib.pyplot.Axes or None, optional
+            Optional matplotlib axes to plot on. If None, creates new figure. 
+            Default is None.
+        save_path : str or Path or None, optional
+            Optional path to save the figure. Parent directory must exist. 
+            Default is None.
                 
-        Raises:
-            FileNotFoundError: If save_path parent directory doesn't exist.
+        Raises
+        ------
+        FileNotFoundError
+            If save_path parent directory doesn't exist.
         """
         if not isinstance(component_range, int):
             raise ValueError("component_range must be an integer.")
@@ -414,19 +554,35 @@ class GaussianMixtureModelBase:
         resolution: int,
         cmap: plt.cm.ScalarMappable
     ) -> axes.Axes:
-        """Plots the Gaussian probability density functions (PDFs) and their means.
+        """
+        Plot the Gaussian probability density functions (PDFs) and their means.
         
-        Args:
-            ax: Matplotlib axes to plot on.
-            adata: AnnData object (not currently used but kept for consistency).
-            feature: Name of the feature being plotted.
-            internal_data: Thresholding event model containing GMM info and boundaries.
-            num_std: Number of standard deviations to plot for each component.
-            resolution: Number of points to use for plotting each Gaussian curve.
-            cmap: Colormap for coloring the categories.
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes
+            Matplotlib axes to plot on.
+        adata : ad.AnnData
+            AnnData object (not currently used but kept for consistency).
+        feature : str
+            Name of the feature being plotted.
+        internal_data : _SingleThresholdingEventModel
+            Thresholding event model containing GMM info and boundaries.
+        num_std : int
+            Number of standard deviations to plot for each component.
+        resolution : int
+            Number of points to use for plotting each Gaussian curve.
+        cmap : matplotlib.pyplot.cm.ScalarMappable
+            Colormap for coloring the categories.
             
-        Returns:
+        Returns
+        -------
+        matplotlib.axes.Axes
             Modified axes object with GMM components plotted.
+            
+        Raises
+        ------
+        ValueError
+            If decision boundaries have not been calculated.
         """
         if internal_data.decision_boundaries is None:
             raise ValueError(
@@ -488,15 +644,23 @@ class GaussianMixtureModelBase:
         cmap: plt.cm.ScalarMappable,
         legend_kwargs: Optional[dict] = None
     ) -> axes.Axes:
-        """Plots legend showing category labels and colors.
+        """
+        Plot legend showing category labels and colors.
         
-        Args:
-            ax: Matplotlib axes to add legend to.
-            internal_data: Thresholding event model containing label information.
-            cmap: Colormap used for category colors.
-            legend_kwargs: Optional kwargs to pass to ax.legend().
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes
+            Matplotlib axes to add legend to.
+        internal_data : _SingleThresholdingEventModel
+            Thresholding event model containing label information.
+        cmap : matplotlib.pyplot.cm.ScalarMappable
+            Colormap used for category colors.
+        legend_kwargs : dict or None, optional
+            Optional kwargs to pass to ax.legend(). Default is None.
             
-        Returns:
+        Returns
+        -------
+        matplotlib.axes.Axes
             Modified axes object with legend added.
         """
         if internal_data.condensed_labels is not None:
@@ -528,17 +692,27 @@ class GaussianMixtureModelBase:
         ax: plt.Axes = None,
         x_axis_limits: Optional[tuple] = None,
     ) -> axes.Axes:
-        """Base function for plotting GMM distributions.
+        """
+        Base function for plotting GMM distributions.
         
-        Args:
-            adata: AnnData object containing the data.
-            feature: Name of the feature to plot.
-            layer: Optional layer name to use instead of .X.
-            hist_kwargs: Optional kwargs to pass to ax.hist().
-            ax: Optional matplotlib axes. If None, creates new figure.
-            x_axis_limits: Optional tuple of (x_min, x_max) for plot limits.
+        Parameters
+        ----------
+        adata : ad.AnnData
+            AnnData object containing the data.
+        feature : str
+            Name of the feature to plot.
+        layer : str or None
+            Optional layer name to use instead of .X.
+        hist_kwargs : dict or None, optional
+            Optional kwargs to pass to ax.hist(). Default is None.
+        ax : matplotlib.pyplot.Axes or None, optional
+            Optional matplotlib axes. If None, creates new figure. Default is None.
+        x_axis_limits : tuple or None, optional
+            Optional tuple of (x_min, x_max) for plot limits. Default is None.
             
-        Returns:
+        Returns
+        -------
+        matplotlib.axes.Axes
             Axes object with histogram plotted.
         """
         # Get feature data with layer support
@@ -587,16 +761,29 @@ class GaussianMixtureModelBase:
         resolution: int,
         cmap: plt.cm.ScalarMappable,
     ) -> axes.Axes:
-        """Plots decision boundaries as a background with category colors.
+        """
+        Plots decision boundaries as a background with category colors.
         
-        Args:
-            ax: Matplotlib axes to plot on.
-            internal_data: Thresholding event model containing boundaries and labels.
-            resolution: Number of points for smooth color gradients.
-            cmap: Colormap for category colors.
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes
+            Matplotlib axes to plot on.
+        internal_data : _SingleThresholdingEventModel
+            Thresholding event model containing boundaries and labels.
+        resolution : int
+            Number of points for smooth color gradients.
+        cmap : matplotlib.pyplot.cm.ScalarMappable
+            Colormap for category colors.
             
-        Returns:
+        Returns
+        -------
+        matplotlib.axes.Axes
             Modified axes object with decision boundaries plotted.
+            
+        Raises
+        ------
+        ValueError
+            If decision boundaries have not been calculated.
         """
         if internal_data.decision_boundaries is None:
             raise ValueError(
@@ -645,15 +832,23 @@ class GaussianMixtureModelBase:
         resolution: int,
         cmap: plt.cm.ScalarMappable,
     ) -> axes.Axes:
-        """Plots horizontal decision boundaries with category colors.
+        """
+        Plots horizontal decision boundaries with category colors.
         
-        Args:
-            ax: Matplotlib axes to plot on.
-            internal_data: Thresholding event model containing boundaries and labels.
-            resolution: Number of points for smooth color gradients.
-            cmap: Colormap for category colors.
+        Parameters
+        ----------
+        ax : matplotlib.axes.Axes
+            Matplotlib axes to plot on.
+        internal_data : _SingleThresholdingEventModel
+            Thresholding event model containing boundaries and labels.
+        resolution : int
+            Number of points for smooth color gradients.
+        cmap : matplotlib.pyplot.cm.ScalarMappable
+            Colormap for category colors.
             
-        Returns:
+        Returns
+        -------
+        matplotlib.axes.Axes
             Modified axes object with horizontal decision boundaries plotted.
         """
         thresholds = internal_data.decision_boundaries.thresholds
@@ -721,24 +916,48 @@ class GaussianMixtureModelBase:
         by both exploratory methods (before thresholding) and final visualization
         methods (with thresholding).
         
-        Args:
-            adata: AnnData object containing the data.
-            feature: Feature name to plot.
-            layer: Layer to use for data access. If None, uses adata.X.
-            obs_label: Optional column in adata.obs containing categorical labels.
-                Required when scatter_density=False to color by labels.
-            ordered_labels: Optional ordered list of label names (low to high).
-                Required when scatter_density=False for label-colored scatter.
-            scatter_density: If True, color by density; if False, color by labels.
-            y_axis_limits: Y-axis limits (min, max). If None, uses data min/max.
-            hist_kwargs: Kwargs for histogram.
-            strip_plot_kwargs: Kwargs for strip plot scatter (e.g., s, alpha, marker). 
-                Only used when scatter_density=False.
-            cmap: Colormap for density or label colors. Defaults to 'plasma'.
-            vmax: Maximum density value for colormap. If None, auto-calculated.
+        Parameters
+        ----------
+        adata : ad.AnnData
+            AnnData object containing the data.
+        feature : str
+            Feature name to plot.
+        layer : str or None
+            Layer to use for data access. If None, uses adata.X.
+        obs_label : str or None, optional
+            Optional column in adata.obs containing categorical labels.
+            Required when scatter_density=False to color by labels.
+        ordered_labels : list of str or None, optional
+            Optional ordered list of label names (low to high).
+            Required when scatter_density=False for label-colored scatter.
+        scatter_density : bool, optional
+            If True, color by density; if False, color by labels. Default is True.
+        y_axis_limits : tuple of float or None, optional
+            Y-axis limits (min, max). If None, uses data min/max. Default is None.
+        hist_kwargs : dict or None, optional
+            Kwargs for histogram. Default is None.
+        strip_plot_kwargs : dict or None, optional
+            Kwargs for strip plot scatter (e.g., s, alpha, marker). 
+            Only used when scatter_density=False. Default is None.
+        cmap : matplotlib.pyplot.cm.ScalarMappable, optional
+            Colormap for density or label colors. Default is 'plasma'.
+        vmax : int or float or None, optional
+            Maximum density value for colormap. If None, auto-calculated. Default is None.
             
-        Returns:
-            Tuple of (fig, ax_scatter, ax_hist): Figure and the two axes objects.
+        Returns
+        -------
+        tuple of (Figure, matplotlib.axes.Axes, matplotlib.axes.Axes)
+            Figure and the two axes objects (scatter plot and histogram).
+            
+        Raises
+        ------
+        ValueError
+            If scatter_density=False but obs_label or ordered_labels not provided.
+        
+        Warns
+        -----
+        UserWarning
+            If vmax is provided when scatter_density=False.
         """
         # Get feature data
         if layer is None:
@@ -906,26 +1125,43 @@ class GaussianMixtureModelBase:
         Creates a figure with a scatter density strip plot (or label-colored scatter)
         alongside a horizontal histogram showing the distribution and decision boundaries.
         
-        Args:
-            adata: AnnData object containing the data.
-            feature: Feature name to plot.
-            layer: Layer to use for data access. If None, uses adata.X.
-            obs_label: Column in adata.obs containing categorical labels.
-            ordered_labels: Ordered list of label names (low to high).
-            internal_data: Thresholding event model with decision boundaries and GMM info.
-            cmap: Colormap for density or label colors. Defaults to 'plasma'.
-            y_axis_limits: Y-axis limits (min, max). If None, uses data min/max.
-            resolution: Resolution for boundary plotting. Defaults to 1000.
-            scatter_density: If True, color by density; if False, color by labels.
-            vmax: Maximum density value for colormap. If None, auto-calculated.
-            hist_kwargs: Kwargs for histogram. Defaults to None.
-            strip_plot_kwargs: Kwargs for strip plot scatter (e.g., s, alpha, marker). 
-                Only used when scatter_density=False. Defaults to None.
-            title: Title for the plot. If not provided, defaults to feature name.
-                Pass empty string '' to suppress title.
+        Parameters
+        ----------
+        adata : ad.AnnData
+            AnnData object containing the data.
+        feature : str
+            Feature name to plot.
+        layer : str or None
+            Layer to use for data access. If None, uses adata.X.
+        obs_label : str
+            Column in adata.obs containing categorical labels.
+        ordered_labels : list of str
+            Ordered list of label names (low to high).
+        internal_data : _SingleThresholdingEventModel
+            Thresholding event model with decision boundaries and GMM info.
+        cmap : matplotlib.pyplot.cm.ScalarMappable, optional
+            Colormap for density or label colors. Default is 'plasma'.
+        y_axis_limits : tuple of float or None, optional
+            Y-axis limits (min, max). If None, uses data min/max. Default is None.
+        resolution : int, optional
+            Resolution for boundary plotting. Default is 1000.
+        scatter_density : bool, optional
+            If True, color by density; if False, color by labels. Default is True.
+        vmax : int or float or None, optional
+            Maximum density value for colormap. If None, auto-calculated. Default is None.
+        hist_kwargs : dict or None, optional
+            Kwargs for histogram. Default is None.
+        strip_plot_kwargs : dict or None, optional
+            Kwargs for strip plot scatter (e.g., s, alpha, marker). 
+            Only used when scatter_density=False. Default is None.
+        title : str or None, optional
+            Title for the plot. If not provided, defaults to feature name.
+            Pass empty string '' to suppress title. Default is None.
             
-        Returns:
-            Figure: The matplotlib figure object.
+        Returns
+        -------
+        matplotlib.figure.Figure
+            The matplotlib figure object.
         """
         # Call base method to create strip plot and histogram
         fig, ax_scatter, ax_hist_y = self._plot_strip_plot_base(
@@ -965,3 +1201,246 @@ class GaussianMixtureModelBase:
             plt.suptitle(title)
 
         return fig
+
+    def generate_thresholding_report(
+        self,
+        output_format: str = 'text',
+    ) -> Union[str, pd.DataFrame]:
+        """
+        Generate a human-readable report of all thresholding operations.
+        
+        Reads thresholding metadata from adata.uns and creates a summary showing:
+        - Operation names and order
+        - Features used
+        - Number of components
+        - Thresholds calculated
+        - Labels assigned
+        - Parent operations (for refinements)
+        - Cell counts per category (captured at operation time)
+        
+        Note: Cell counts reflect the state immediately after each operation was performed,
+        not the current state of the data. This is important because subsequent refinement
+        operations may change labels, but the historical counts are preserved.
+        
+        Parameters
+        ----------
+        output_format : str, default 'text'
+            'text' for formatted string, 'dataframe' for pandas DataFrame.
+            
+        Returns
+        -------
+        Union[str, pd.DataFrame]
+            Formatted report string or DataFrame.
+            
+        Raises
+        ------
+        KeyError
+            If thresholding_events_key doesn't exist in adata.uns.
+        ValueError
+            If output_format is not 'text' or 'dataframe'.
+        TypeError
+            If adata.uns[thresholding_events_key] is not a dict.
+            
+        Examples
+        --------
+        Generate text report::
+        
+            >>> gmm = GMMThresholding(adata, feature='gene1', label_obs_save_str='gene1_cat')
+            >>> gmm.fit(n_components=2)
+            >>> gmm.categorize_samples(['Low', 'High'])
+            >>> report = gmm.generate_thresholding_report()
+            >>> print(report)
+            Thresholding Report
+            ==================================================
+            
+            1. gene1_thresholding (Standard Thresholding)
+            ----------------------------------------------
+               Feature: gene1
+               Layer: None
+               Obs column: gene1_cat
+               Components: 2
+               Thresholds: [0.0450]
+               Labels: ['Low', 'High']
+               Cell counts: Low=1234, High=5678
+        
+        Generate DataFrame report::
+        
+            >>> report_df = gmm.generate_thresholding_report(
+            ...     output_format='dataframe'
+            ... )
+            >>> report_df.head()
+        """
+        from collections import OrderedDict
+        
+        # Use the instance's thresholding_events_key
+        thresholding_events_key = self.thresholding_events_key
+        
+        # Validate thresholding_events_key exists
+        if thresholding_events_key not in self.adata.uns:
+            raise KeyError(
+                f"thresholding_events_key '{thresholding_events_key}' not found in adata.uns. "
+                f"Available keys: {list(self.adata.uns.keys())}"
+            )
+        
+        # Validate it's a dict-like structure
+        events = self.adata.uns[thresholding_events_key]
+        if not isinstance(events, (dict, OrderedDict)):
+            raise TypeError(
+                f"adata.uns['{thresholding_events_key}'] must be a dict or OrderedDict, "
+                f"got {type(events)}"
+            )
+        
+        # Validate output_format
+        valid_formats = ['text', 'dataframe']
+        if output_format not in valid_formats:
+            raise ValueError(
+                f"output_format must be one of {valid_formats}, got '{output_format}'"
+            )
+        
+        if len(events) == 0:
+            if output_format == 'text':
+                return "No thresholding operations found."
+            else:
+                return pd.DataFrame()
+        
+        # Build report data
+        report_data = []
+        
+        for idx, (op_name, op_data) in enumerate(events.items(), 1):
+            # Extract basic info
+            feature = op_data.get('feature_name', 'N/A')
+            layer = op_data.get('layer', None)
+            obs_label = op_data.get('gmm_obs_label', 'N/A')
+            ordered_labels = op_data.get('ordered_gmm_labels', [])
+            
+            # Extract GMM info
+            gmm_info = op_data.get('gmm_info', {})
+            if gmm_info is not None:
+                n_components = gmm_info.get('n_components', 'N/A')
+            else:
+                n_components = 'N/A (manual thresholds)'
+            
+            # Extract thresholds
+            decision_boundaries = op_data.get('decision_boundaries', {})
+            thresholds = decision_boundaries.get('thresholds', []) if decision_boundaries else []
+            
+            # Extract operation type and hierarchy
+            operation_type = op_data.get('operation_type', 'standard')
+            parent_operation = op_data.get('parent_operation', None)
+            refined_from_labels = op_data.get('refined_from_labels', None)
+            
+            # Get cell counts - prefer stored counts from operation time
+            cell_counts = op_data.get('cell_counts_after_operation', {})
+            
+            # Fallback to current obs counts if not stored (backward compatibility)
+            if not cell_counts and obs_label in self.adata.obs.columns:
+                counts = self.adata.obs[obs_label].value_counts()
+                # Only include labels from this operation
+                for label in ordered_labels:
+                    if label in counts.index:
+                        cell_counts[label] = int(counts[label])
+            
+            # Store data for this operation
+            op_info = {
+                'operation_number': idx,
+                'operation_name': op_name,
+                'operation_type': operation_type,
+                'feature': feature,
+                'layer': str(layer),
+                'obs_label': obs_label,
+                'n_components': n_components,
+                'thresholds': thresholds,
+                'labels': ordered_labels,
+                'parent_operation': parent_operation,
+                'refined_from_labels': refined_from_labels,
+                'cell_counts': cell_counts,
+            }
+            report_data.append(op_info)
+        
+        # Generate output based on format
+        if output_format == 'dataframe':
+            # Create DataFrame
+            df_data = []
+            for op in report_data:
+                df_data.append({
+                    'Operation': f"{op['operation_number']}. {op['operation_name']}",
+                    'Type': op['operation_type'],
+                    'Feature': op['feature'],
+                    'Layer': op['layer'],
+                    'Obs Label': op['obs_label'],
+                    'Components': str(op['n_components']),
+                    'Thresholds': ', '.join(f"{t:.4f}" for t in op['thresholds']) if op['thresholds'] else 'N/A',
+                    'Labels': ', '.join(op['labels']),
+                    'Parent': str(op['parent_operation']),
+                    'Refined From': ', '.join(op['refined_from_labels']) if op['refined_from_labels'] else 'N/A',
+                    'Total Cells': sum(op['cell_counts'].values()) if op['cell_counts'] else 'N/A',
+                })
+            return pd.DataFrame(df_data)
+        
+        else:  # text format
+            lines = []
+            lines.append("Thresholding Report")
+            lines.append("=" * 50)
+            lines.append("")
+            
+            for op in report_data:
+                # Header
+                if op['operation_type'] == 'refinement' or op['operation_type'] == 'refinement_manual':
+                    header = f"{op['operation_number']}. {op['operation_name']} (Refinement)"
+                    if op['parent_operation']:
+                        header += f" of {op['parent_operation']}"
+                else:
+                    header = f"{op['operation_number']}. {op['operation_name']} (Standard Thresholding)"
+                
+                lines.append(header)
+                lines.append("-" * len(header))
+                
+                # Basic info
+                lines.append(f"   Feature: {op['feature']}")
+                lines.append(f"   Layer: {op['layer']}")
+                lines.append(f"   Obs column: {op['obs_label']}")
+                
+                # GMM info
+                lines.append(f"   Components: {op['n_components']}")
+                
+                # Thresholds
+                if op['thresholds']:
+                    threshold_str = ', '.join(f"{t:.4f}" for t in op['thresholds'])
+                    lines.append(f"   Thresholds: [{threshold_str}]")
+                else:
+                    lines.append(f"   Thresholds: None")
+                
+                # Labels
+                labels_str = ', '.join(f"'{label}'" for label in op['labels'])
+                lines.append(f"   Labels: [{labels_str}]")
+                
+                # Refinement-specific info
+                if op['refined_from_labels']:
+                    refined_str = ', '.join(f"'{label}'" for label in op['refined_from_labels'])
+                    lines.append(f"   Refined from: [{refined_str}]")
+                
+                # Cell counts
+                if op['cell_counts']:
+                    count_strs = [f"{label}={count}" for label, count in op['cell_counts'].items()]
+                    lines.append(f"   Cell counts: {', '.join(count_strs)}")
+                else:
+                    lines.append(f"   Cell counts: Not available (obs column may have been modified)")
+                
+                lines.append("")
+            
+            # Summary
+            lines.append("=" * 50)
+            lines.append(f"Total operations: {len(report_data)}")
+            
+            # Count operation types
+            type_counts = {}
+            for op in report_data:
+                op_type = op['operation_type']
+                type_counts[op_type] = type_counts.get(op_type, 0) + 1
+            
+            if type_counts:
+                lines.append("Operation types:")
+                for op_type, count in type_counts.items():
+                    lines.append(f"  - {op_type}: {count}")
+            
+            return '\n'.join(lines)

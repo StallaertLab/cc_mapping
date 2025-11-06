@@ -1,0 +1,269 @@
+/* Custom styling for scikit-learn style cards */
+
+/* Widen the primary sidebar (left sidebar) */
+:root {
+    --pst-sidebar-primary-width: 5vw;  /* 5% of viewport width */
+    --pst-sidebar-secondary-width: 70em;  /* Default is ~17rem - right sidebar "On this page" */
+}
+
+/* Force primary sidebar width (if variable doesn't work) */
+.bd-sidebar-primary {
+    width: 20vw !important;
+    min-width: 0 !important;  /* Remove any minimum width constraint */
+}
+
+/* Increase main content area width */
+.bd-container__inner.bd-page-width,
+.bd-page-width {
+    max-width: 95vw !important;  /* Default is around 88rem/1408px, adjust as needed */
+}
+
+/* Alternative: Remove max-width entirely for full-width content */
+/* .bd-container__inner.bd-page-width,
+.bd-page-width {
+    max-width: none !important;
+} */
+
+/* Fix text wrapping in right sidebar TOC */
+.bd-toc a,
+.bd-sidebar-secondary a {
+    white-space: normal !important;
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+    text-overflow: clip !important;
+}
+
+/* Remove max-width constraints on sidebar secondary (API pages) */
+.bd-sidebar-secondary,
+.bd-sidebar-secondary .bd-toc,
+div.bd-sidebar-secondary.bd-toc {
+    max-width: none !important;
+    width: 40% !important;
+}
+
+/* Ensure the TOC container takes full width */
+.bd-toc nav,
+.bd-toc .toc-item,
+.bd-toc li {
+    max-width: none !important;
+    width: 40% !important;
+}
+
+/* Make sure links can use full width */
+.bd-sidebar-secondary a.reference {
+    max-width: none !important;
+    width: auto !important;
+    display: block !important;
+}
+
+/* Specific styles for notebook/tutorial pages ONLY */
+/* Target the visible nav section with flex-column class */
+.bd-sidebar-secondary nav.visible.nav-section.flex-column {
+    min-width: 300px !important;
+    width: 100% !important;
+}
+
+/* Make notebook TOC items wider */
+.bd-sidebar-secondary .toc-h2.nav-item.toc-entry,
+.bd-sidebar-secondary .toc-h3.nav-item.toc-entry {
+    width: 100% !important;
+    max-width: none !important;
+}
+
+/* Ensure links in notebook TOC can wrap and use full width */
+.bd-sidebar-secondary .toc-h2 a.reference.internal.nav-link,
+.bd-sidebar-secondary .toc-h3 a.reference.internal.nav-link {
+    width: 100% !important;
+    max-width: none !important;
+    white-space: normal !important;
+}
+
+.intro-card {
+    margin: 15px 0;
+    height: 100%;
+    border: 1px solid rgba(0, 0, 0, 0.125);
+    border-radius: 0.5rem;
+}
+
+.intro-card:hover {
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+    transition: all 0.3s ease;
+}
+
+.intro-card .card-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+}
+
+.intro-card .card-text {
+    color: #6c757d;
+    margin-bottom: 1.5rem;
+}
+
+.custom-button {
+    margin-top: auto;
+}
+
+.custom-button a {
+    display: inline-block;
+    padding: 0.5rem 1.5rem;
+    background-color: #007bff;
+    color: white !important;
+    text-decoration: none;
+    border-radius: 0.25rem;
+    transition: background-color 0.15s ease-in-out;
+}
+
+.custom-button a:hover {
+    background-color: #0056b3;
+    text-decoration: none;
+}
+
+/* Container spacing */
+.container {
+    margin-top: 2rem;
+    margin-bottom: 2rem;
+}
+
+/* Feature list styling */
+ul {
+    list-style-type: disc;
+    margin-left: 1.5rem;
+}
+
+ul li {
+    margin-bottom: 0.5rem;
+}
+
+/* Reduce indentation in right sidebar TOC to match scikit-learn */
+/* Target the page TOC specifically */
+.bd-toc .page-toc ul {
+    padding-left: 0 !important;
+    list-style: none;
+}
+
+/* Remove indentation from nested lists */
+.bd-toc .page-toc ul ul {
+    padding-left: 0.5rem !important;  /* Minimal indentation like sklearn */
+    margin-left: 0.8rem !important;
+}
+
+/* Remove padding from list items */
+.bd-toc .page-toc li {
+    padding-left: 0.5rem !important;
+    margin-left: 0.5rem !important;
+}
+
+/* Remove padding from links */
+.bd-toc .page-toc a {
+    padding-left: 0 !important;
+    display: block;
+}
+
+/* Nested items get minimal left padding only */
+.bd-toc .page-toc ul ul li a {
+    padding-left: 0.1rem !important;
+}
+
+/* Additional overrides for Bootstrap nav classes */
+.bd-toc .nav {
+    padding-left: 0 !important;
+}
+
+.bd-toc .nav-item {
+    padding-left: 0 !important;
+}
+
+.bd-toc .nav-link {
+    padding-left: 0 !important;
+}
+
+/* Override nested nav elements */
+.bd-toc nav ul,
+.bd-toc nav.bd-toc-nav ul {
+    padding-left: 0 !important;
+    margin-left: 0 !important;
+}
+
+.bd-toc nav ul ul,
+.bd-toc nav.bd-toc-nav ul ul {
+    padding-left: 0.1rem !important;
+}
+
+/* Hide Parameters and __init__ sections from the TOC */
+.bd-toc a[href*="parameters"],
+.bd-toc a[href*="Parameters"],
+.bd-toc a[href*="__init__"] {
+    display: none !important;
+}
+
+/* Reduce spacing in API documentation to match scikit-learn */
+/* Tighten spacing around attributes and parameters */
+dl.field-list {
+    margin-top: 0.25rem !important;
+    margin-bottom: 0.25rem !important;
+}
+
+dl.field-list > dt {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    margin-bottom: 0 !important;
+}
+
+dl.field-list > dd {
+    margin-top: 0 !important;
+    margin-bottom: 0.25rem !important;
+    padding-left: 2rem !important;
+}
+
+/* Reduce spacing in definition lists (attributes section) */
+dl.py.attribute,
+dl.py.property,
+dl.py.method {
+    margin-bottom: 0.5rem !important;
+}
+
+/* Tighten up the Type field spacing */
+dl.field-list dt {
+    font-weight: bold;
+    margin-top: 0 !important;
+}
+
+/* Reduce spacing between parameter entries */
+dd > p {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+}
+
+/* Reduce spacing in attribute/method sections */
+.py.attribute > dt,
+.py.property > dt,
+.py.method > dt {
+    padding-top: 0.25rem !important;
+    padding-bottom: 0.25rem !important;
+    margin-bottom: 0.25rem !important;
+}
+
+/* Reduce spacing in dd elements (descriptions) */
+.py.attribute > dd,
+.py.property > dd,
+.py.method > dd {
+    margin-top: 0 !important;
+    margin-bottom: 0.5rem !important;
+    margin-left: 2rem !important;
+}
+
+/* Tighten spacing in parameter lists */
+dl.field-list dd ul,
+dl.field-list dd ol {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    padding-left: 1.5rem !important;
+}
+
+dl.field-list dd ul li,
+dl.field-list dd ol li {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+}

@@ -6,21 +6,22 @@ thresholding on gene expression data within AnnData objects. It supports both
 single-feature thresholding and sequential refinement operations.
 
 Main Classes:
-    GaussianMixtureModelThresholding: Single-feature GMM thresholding
-    SequentialGaussianMixtureModelThresholding: Sequential refinement (Phase 2)
-    
+    GMMThresholding: Single-feature GMM thresholding
+    SequentialGMM: Sequential refinement (Phase 2)
+
 Pydantic Models:
     _GaussianMixtureModelInfo: GMM parameters and results storage
     _DecisionBoundariesModel: Decision boundary thresholds storage
     _SingleThresholdingEventModel: Complete thresholding event data
-    
+
 Base Classes:
     GaussianMixtureModelBase: Shared utilities for GMM operations
 
-Usage:
-    from cc_mapping.thresholding import GaussianMixtureModelThresholding
+Usage::
+
+    from cc_mapping.thresholding import GMMThresholding
     
-    gmm = GaussianMixtureModelThresholding(
+    gmm = GMMThresholding(
         adata=adata,
         feature='gene1',
         label_obs_save_str='gene1_categories'
@@ -37,27 +38,18 @@ from .base import (
     GaussianMixtureModelBase,
 )
 
-from .single import GaussianMixtureModelThresholding
+from .single import GMMThresholding
 
-from .sequential import SequentialGaussianMixtureModelThresholding
-
-from .utils import (
-    create_boolean_label_combination,
-    generate_thresholding_report,
-)
+from .sequential import SequentialGMM
 
 
 __all__ = [
     # Main classes
-    'GaussianMixtureModelThresholding',
-    'SequentialGaussianMixtureModelThresholding',
+    'GMMThresholding',
+    'SequentialGMM',
     
     # Base class
     'GaussianMixtureModelBase',
-    
-    # Utility functions
-    'create_boolean_label_combination',
-    'generate_thresholding_report',
     
     # Pydantic models (private but exposed for advanced usage)
     '_GaussianMixtureModelInfo',
@@ -65,4 +57,4 @@ __all__ = [
     '_SingleThresholdingEventModel',
 ]
 
-__version__ = '2.0.0'  # Updated with Phase 1 refactoring
+__version__ = '0.1.0'

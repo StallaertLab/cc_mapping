@@ -1,0 +1,33 @@
+.. _{{ module.replace(".", "-") }}_ref:
+
+{{ "=" * (module|length + 8) }}
+:mod:`{{ module }}`
+{{ "=" * (module|length + 8) }}
+
+.. automodule:: {{ module }}
+   :no-members:
+   :no-inherited-members:
+
+{{ module_info.description if module_info.description else "" }}
+
+{% for section in module_info.sections %}
+{% if section.title %}
+{{ section.title }}
+{{ "-" * section.title|length }}
+{% endif %}
+
+{% if section.get("description") %}
+{{ section.description }}
+{% endif %}
+
+.. currentmodule:: {{ module }}
+
+.. autosummary::
+   :toctree: generated
+   :nosignatures:
+   
+{% for item in section.autosummary %}
+   {{ item }}
+{% endfor %}
+
+{% endfor %}

@@ -1,0 +1,21 @@
+.. _api_ref:
+
+=============
+API Reference
+=============
+
+This is the class and function reference for cc-mapping. Please refer to
+the full user guide for further details, as the class and
+function raw specifications may not be enough to give full guidelines on their use.
+
+{% for module, module_info in API_REFERENCE %}
+
+:mod:`{{ module }}`: {{ module_info.short_summary }}
+{{ "=" * (module|length + 10 + module_info.short_summary|length) }}
+
+.. toctree::
+   :maxdepth: 1
+
+   {{ module }}
+
+{% endfor %}

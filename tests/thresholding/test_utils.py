@@ -14,10 +14,8 @@ from collections import OrderedDict
 
 import anndata as ad
 
-from cc_mapping.thresholding.utils import (
-    create_boolean_label_combination,
-    generate_thresholding_report,
-)
+from cc_mapping.utils import create_boolean_label_combination
+from cc_mapping.thresholding import GMMThresholding
 
 
 @pytest.fixture

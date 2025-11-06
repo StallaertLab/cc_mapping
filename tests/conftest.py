@@ -5,7 +5,7 @@ import anndata as ad
 import numpy as np
 import pytest
 
-from src.cc_mapping.thresholding import GaussianMixtureModelThresholding
+from src.cc_mapping.thresholding import GMMThresholding
 
 
 def pytest_configure():
@@ -26,8 +26,8 @@ def sample_adata():
 
 @pytest.fixture
 def sample_gmm_thresholding_instance(sample_adata):
-    """Creates an instance of GaussianMixtureModelThresholding for testing."""
-    gmm_thresholding_instance = GaussianMixtureModelThresholding(adata=sample_adata,
+    """Creates an instance of GMMThresholding for testing."""
+    gmm_thresholding_instance = GMMThresholding(adata=sample_adata,
                                                                  feature='gene1',
                                                                  label_obs_save_str='labels',
                                                                 )

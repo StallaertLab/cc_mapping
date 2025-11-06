@@ -1,4 +1,4 @@
-"""Tests for manual threshold functionality in GaussianMixtureModelThresholding.
+"""Tests for manual threshold functionality in GMMThresholding.
 
 This module tests the ability to override GMM-derived automatic thresholds with
 user-specified manual thresholds. This is critical for ensuring consistent
@@ -7,7 +7,7 @@ thresholding across different datasets or experimental conditions.
 
 import pytest
 import numpy as np
-from src.cc_mapping.thresholding import GaussianMixtureModelThresholding
+from src.cc_mapping.thresholding import GMMThresholding
 
 
 ### Basic Manual Threshold Tests ###

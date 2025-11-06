@@ -1,10 +1,10 @@
-"""Tests for initialization and constructor validation of GaussianMixtureModelThresholding.
+"""Tests for initialization and constructor validation of GMMThresholding.
 
 This module tests the constructor validation, parameter checking, and proper
-initialization of the GaussianMixtureModelThresholding class.
+initialization of the GMMThresholding class.
 """
 
-from src.cc_mapping.thresholding import GaussianMixtureModelThresholding
+from src.cc_mapping.thresholding import GMMThresholding
 from tests.helpers import (
     assert_adata_copy_and_uns,
     assert_direct_attributes_initialized,
@@ -29,7 +29,7 @@ def test_init_success_defaults(sample_adata):
     feature_name = 'gene1'
     label_name = 'my_labels'
 
-    gmm_thresholding = GaussianMixtureModelThresholding(
+    gmm_thresholding = GMMThresholding(
         adata=sample_adata,
         feature=feature_name,
         label_obs_save_str=label_name,
@@ -59,7 +59,7 @@ def test_init_success_custom_kwargs(sample_adata):
     init_gmm_kwargs = {'n_components': 5, 'covariance_type': 'diag'}
     init_random_state = 123
 
-    gmm_thresholding = GaussianMixtureModelThresholding(
+    gmm_thresholding = GMMThresholding(
         adata=sample_adata,
         feature=feature_name,
         label_obs_save_str=label_name,
@@ -90,7 +90,7 @@ def test_init_success_custom_kwargs_with_random_state(sample_adata):
     init_gmm_kwargs = {'n_components': 2, 'random_state': 999}
     init_random_state = 123 # This should be stored in self.random_state but ignored for gmm_kwargs dict
 
-    gmm_thresholding = GaussianMixtureModelThresholding(
+    gmm_thresholding = GMMThresholding(
         adata=sample_adata,
         feature=feature_name,
         label_obs_save_str=label_name,
@@ -121,7 +121,7 @@ def test_init_success_existing_uns_key(sample_adata):
     feature_name = 'gene1'
     label_name = 'new_labels'
 
-    gmm_thresholding = GaussianMixtureModelThresholding(
+    gmm_thresholding = GMMThresholding(
         adata=modified_adata,
         feature=feature_name,
         label_obs_save_str=label_name
@@ -157,7 +157,7 @@ def test_init_success_existing_uns_key(sample_adata):
 def test_init_invalid_adata_type(invalid_adata):
     """Tests TypeError when adata is not an AnnData object."""
     with pytest.raises(TypeError, match="adata must be an AnnData.AnnData object"):
-        GaussianMixtureModelThresholding(
+        GMMThresholding(
             adata=invalid_adata,
             feature='gene1',
             label_obs_save_str='labels'
@@ -168,7 +168,7 @@ def test_init_non_numeric_x_adata(sample_adata):
     non_numeric_x_adata = create_modified_adata(sample_adata, x_dtype=np.object_) # Ensure the original sample_adata is unchanged
     # Match the updated error message in __init__
     with pytest.raises(TypeError, match="adata.X must be a numeric type"):
-        GaussianMixtureModelThresholding(
+        GMMThresholding(
             adata=non_numeric_x_adata,
             feature='gene1',
             label_obs_save_str='labels'
@@ -180,7 +180,7 @@ def test_init_existing_uns_key_wrong_type(sample_adata):
 
     # Match the updated error message in __init__
     with pytest.raises(TypeError, match="The 'gmm_thresholding_events' key in the AnnData object's `.uns` attribute must be an OrderedDict."):
-        GaussianMixtureModelThresholding(
+        GMMThresholding(
             adata=wrong_uns_type_adata,
             feature='gene1',
             label_obs_save_str='labels'
@@ -195,7 +195,7 @@ def test_init_existing_uns_key_wrong_type(sample_adata):
 def test_init_invalid_feature_type_or_value(sample_adata, invalid_feature, expected_exception, match_pattern):
     """Tests errors for invalid feature types or empty string."""
     with pytest.raises(expected_exception, match=match_pattern):
-        GaussianMixtureModelThresholding(
+        GMMThresholding(
             adata=sample_adata,
             feature=invalid_feature,
             label_obs_save_str='labels'
@@ -205,7 +205,7 @@ def test_init_feature_not_found(sample_adata):
     """Tests KeyError when the feature is not in adata.var_names."""
     not_present_feature = 'unknown_gene'
     with pytest.raises(KeyError, match=f"Feature '{not_present_feature}' not found in adata.var_names. Please check the feature name."):
-        GaussianMixtureModelThresholding(
+        GMMThresholding(
             adata=sample_adata,
             feature=not_present_feature,  # This feature does not exist in sample_adata.var_names
             label_obs_save_str='labels'
@@ -220,7 +220,7 @@ def test_init_feature_not_found(sample_adata):
 def test_init_invalid_label_type(sample_adata, invalid_label, expected_exception, match_pattern):
     """Tests TypeError for invalid label_obs_save_str types."""
     with pytest.raises(expected_exception, match=match_pattern):
-        GaussianMixtureModelThresholding(
+        GMMThresholding(
             adata=sample_adata,
             feature='gene1',
             label_obs_save_str=invalid_label
@@ -234,7 +234,7 @@ def test_init_existing_obs_label(sample_adata):
     existing_obs_label_adata = create_modified_adata(sample_adata, add_obs={label_name: np.repeat(0, len(sample_adata))}) # Ensure the original sample_adata is unchanged
 
     with pytest.raises(KeyError, match=f"obs key '{label_name}' already exists in the AnnData object. Please choose a different label."):
-        GaussianMixtureModelThresholding(
+        GMMThresholding(
             adata=existing_obs_label_adata,
             feature='gene1',
             label_obs_save_str=label_name
@@ -249,7 +249,7 @@ def test_init_invalid_gmm_kwargs_type(sample_adata, invalid_kwargs):
     """Tests TypeError when gmm_kwargs is provided but is not a dictionary."""
     # Match the updated error message in __init__
     with pytest.raises(TypeError, match="gmm_kwargs must be a dictionary or None"):
-        GaussianMixtureModelThresholding(
+        GMMThresholding(
             adata=sample_adata,
             feature='gene1',
             label_obs_save_str='labels',

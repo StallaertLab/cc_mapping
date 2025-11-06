@@ -3,7 +3,7 @@ Test Helper Utilities for the Project's Test Suite.
 
 This module provides utility functions designed to simplify writing tests,
 particularly focusing on testing components involving `anndata.AnnData` objects
-and specific class behaviors (like `GaussianMixtureModelThresholding`).
+and specific class behaviors (like `GMMThresholding`).
 
 It includes functions for:
 
@@ -27,7 +27,7 @@ from collections import OrderedDict
 import anndata as ad
 import numpy as np
 
-from src.cc_mapping.thresholding import (GaussianMixtureModelThresholding,
+from src.cc_mapping.thresholding import (GMMThresholding,
                                         _SingleThresholdingEventModel,
                                         _GaussianMixtureModelInfo)
 
@@ -160,7 +160,7 @@ def create_modified_adata(
     return adata_copy
  
 def assert_adata_copy_and_uns(
-    gmm_obj: GaussianMixtureModelThresholding,
+    gmm_obj: GMMThresholding,
     original_adata: ad.AnnData
 ):
     """
@@ -189,7 +189,7 @@ def assert_adata_copy_and_uns(
 
 
 def assert_direct_attributes_initialized(
-    gmm_obj: GaussianMixtureModelThresholding,
+    gmm_obj: GMMThresholding,
     expected_feature: str,
     expected_label: str,
     expected_random_state: Optional[int] = 42
@@ -214,7 +214,7 @@ def assert_direct_attributes_initialized(
         f"Attribute 'random_state' mismatch. Expected {expected_random_state}, got {gmm_obj.random_state}."
 
 
-def assert_default_internal_states(gmm_obj: GaussianMixtureModelThresholding):
+def assert_default_internal_states(gmm_obj: GMMThresholding):
     """
     Asserts attributes initialized to default values within __init__.
 
@@ -229,7 +229,7 @@ def assert_default_internal_states(gmm_obj: GaussianMixtureModelThresholding):
 
 
 def assert_gmm_kwargs_processed(
-    gmm_obj: GaussianMixtureModelThresholding,
+    gmm_obj: GMMThresholding,
     input_gmm_kwargs: Optional[dict] = None, # Original kwargs passed to __init__
     input_random_state: Optional[int] = None          # Original random_state passed to __init__
 ):
@@ -263,7 +263,7 @@ def assert_gmm_kwargs_processed(
         f"Attribute 'gmm_kwargs' mismatch. Expected {expected_final_kwargs}, got {gmm_obj.gmm_kwargs}."
 
 
-def assert_dependent_models_initialized(gmm_obj: GaussianMixtureModelThresholding):
+def assert_dependent_models_initialized(gmm_obj: GMMThresholding):
     """
     Asserts dependent models (gmm_info, internal_data) are initialized correctly.
 
