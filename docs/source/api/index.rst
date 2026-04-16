@@ -10,6 +10,36 @@ function raw specifications may not be enough to give full guidelines on their u
 
 
 
+:mod:`cc_mapping.core`: Random forest feature selection.
+=========================================================
+
+.. toctree::
+   :maxdepth: 1
+
+   cc_mapping.core
+
+
+
+:mod:`cc_mapping.manifold`: PHATE dimensionality reduction and visualization.
+==============================================================================
+
+.. toctree::
+   :maxdepth: 1
+
+   cc_mapping.manifold
+
+
+
+:mod:`cc_mapping.plot`: Plotting utilities for grid-based visualizations.
+==========================================================================
+
+.. toctree::
+   :maxdepth: 1
+
+   cc_mapping.plot
+
+
+
 :mod:`cc_mapping.thresholding`: Thresholding tools for cell cycle analysis.
 ============================================================================
 
@@ -27,4 +57,3 @@ function raw specifications may not be enough to give full guidelines on their u
    :maxdepth: 1
 
    cc_mapping.utils
-

@@ -1,30 +1,21 @@
 from typing import Optional
-from collections import OrderedDict
 import warnings
+
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
-import numpy as np
+import numpy as np  # noqa: E402
+
 np.seterr(all="ignore")
 
-import re
-import anndata as ad
-from scipy import stats as st
-from tqdm import tqdm
+import re  # noqa: E402
+import anndata as ad  # noqa: E402
+from tqdm import tqdm  # noqa: E402
 
-import matplotlib
-import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-from matplotlib import cm
+import matplotlib.pyplot as plt  # noqa: E402
 
-from sklearn.svm import SVC
-from sklearn.mixture import GaussianMixture
-from sklearn import metrics
-from sklearn.preprocessing import LabelEncoder
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
-
-from .utils import get_str_idx
-from .preprocess import row_data_partitioning
+from sklearn import metrics  # noqa: E402
+from sklearn.model_selection import train_test_split  # noqa: E402
+from sklearn.ensemble import RandomForestClassifier  # noqa: E402
 
 
 def train_random_forest_model(
@@ -63,7 +54,9 @@ def train_random_forest_model(
     accuracy = metrics.accuracy_score(test_labels, rf_pred_labels)
 
     if verbose:
-        print(f"Classification Report for RF model trained with {feature_set_description} feature set")
+        print(
+            f"Classification Report for RF model trained with {feature_set_description} feature set"
+        )
         print("##################################################################")
         print()
         print(metrics.classification_report(test_labels, rf_pred_labels))
@@ -119,7 +112,7 @@ def random_forest_feature_selection(
     verbose: bool = True,
     save_path: str = None,
     cutoff_method: str = "increment",
-    train_test_split_params: Optional[dict]=  None,
+    train_test_split_params: Optional[dict] = None,
     rf_params: Optional[dict] = None,
 ) -> ad.AnnData:
     """
@@ -148,7 +141,8 @@ def random_forest_feature_selection(
     """
 
     if rf_params is None:
-        rf_params = { "min_samples_leaf": 50,
+        rf_params = {
+            "min_samples_leaf": 50,
             "n_estimators": 150,
             "bootstrap": True,
             "oob_score": True,
@@ -161,14 +155,14 @@ def random_forest_feature_selection(
         feature_set_name = f"{method}_feature_set"
 
     # Get the indices of the features in the training feature set
-    feature_set_idxs, _ = get_str_idx(training_feature_set, adata.var_names.values)
+    feature_set_idxs = np.where(np.isin(adata.var_names.values, training_feature_set))[
+        0
+    ]
 
     # remove the nan values from the feature set
     # TODO: I need to make this more generalizable because there are other forms of nan in the data
-    try:
-        phase_nan_idx, _ = get_str_idx("nan", adata.obs[training_labels])
-    except KeyError:
-        phase_nan_idx = []
+    phase_nan_mask = adata.obs[training_labels].astype(str) == "nan"
+    phase_nan_idx = np.where(phase_nan_mask)[0]
 
     # isolates the feature set from the adata object
     feature_set = adata.X[:, feature_set_idxs].copy()
@@ -208,7 +202,6 @@ def random_forest_feature_selection(
         optimum_random_forest_feature_set = sorted_feature_set[:optim_feat_num]
 
     elif method == "RF_min_max":
-
         counter = 0
         max_acc_arg = 0
         acc_list = [0]
@@ -218,7 +211,6 @@ def random_forest_feature_selection(
             desc=f"Training RF model iteratively using most important RF features until {stable_counter} stable iterations",
             disable=not verbose,
         ):
-
             if counter > stable_counter:
                 break
 
@@ -247,7 +239,6 @@ def random_forest_feature_selection(
             # and the number of features is greater than 1 (to avoid the 0th index in the accuracy list)
             # elif acc_difference > threshold and num_feats > 1:
             elif acc_difference > threshold:
-
                 # if the cuttoff method is jump, then if the difference is greater than the threshold,
                 # then set the maximum accuracy argument to the current number of features and reset counter
                 if cutoff_method == "jump":
@@ -258,7 +249,6 @@ def random_forest_feature_selection(
                 # then the optimal number of features is increased by 1 and the check occurs again until the condition is not met
                 # when the acc_diccerece is less than the threshold, the counter also decreased by 1
                 elif cutoff_method == "increment":
-
                     temp_max_acc_arg, temp_counter = max_acc_arg, counter
                     for _ in range(stable_counter):
                         temp_max_acc_arg, temp_counter, continue_bool = (
@@ -310,9 +300,7 @@ def random_forest_feature_selection(
         print(optimum_random_forest_feature_set)
 
     # converts the optimal feature set to a boolean array
-    feat_idxs, _ = get_str_idx(optimum_random_forest_feature_set, adata.var_names.values)
-    fs_bool = np.repeat(False, adata.shape[1])
-    fs_bool[feat_idxs] = True
+    fs_bool = np.isin(adata.var_names.values, optimum_random_forest_feature_set)
 
     adata.var[feature_set_name] = fs_bool
 
@@ -357,4 +345,3 @@ def random_forest_feature_selection(
         plt.close()
 
     return adata
-

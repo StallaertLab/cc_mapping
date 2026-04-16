@@ -1,146 +1,375 @@
+"""
+Refactored plotting module with improved structure and separation of concerns.
+
+Key improvements:
+- Dataclasses instead of dict-passing for type safety
+- Separated grid builders for different use cases
+- Native matplotlib composition instead of array manipulation
+- Clear separation between data prep and visualization
+"""
+
 from __future__ import annotations
 
-import itertools
 import os
-from math import ceil, floor
+from dataclasses import dataclass, field
+from typing import Callable, Optional
 
 import anndata as ad
-import matplotlib as mpl
-import matplotlib._pylab_helpers
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-
-from .utils import get_str_idx
-
-
-def plot_row_partitions(
-    adata: ad.AnnData,
-    obs_search_term: str,
-    colors: list | np.ndarray = None,
-    column_labels: list | np.ndarray = None,
-    obs_embedding_key: str = "X_phate",
-    kwargs: dict = None,
-    plot_all: bool = True,
-    plot_background: bool = True,
-    unit_size: int = 20,
-    save_path: str = None,
-):
-    """
-    Plot row partitions of the given AnnData object.
-
-    Args:
-        adata (ad.AnnData): The AnnData object containing the data.
-        obs_search_term (str): The search term for selecting the observations.
-        colors (list | np.ndarray, optional): List or array of colors for the plot. Defaults to None.
-        column_labels (list | np.ndarray, optional): List or array of column labels. Defaults to None.
-        obs_embedding_key (str, optional): The key for the observation embedding. Defaults to 'X_phate'.
-        kwargs (dict, optional): Additional keyword arguments for the plotting function. Defaults to None.
-        plot_all (bool, optional): Whether to plot all partitions. Defaults to True.
-        plot_background (bool, optional): Whether to plot the background. Defaults to True.
-        unit_size (int, optional): The size of each unit in the plot. Defaults to 20.
-        save_path (str, optional): The path to save the plot. Defaults to None.
-
-    Raises:
-        ValueError: If the save directory does not exist.
-
-    Returns:
-        None
-    """
-    if save_path is not None:
-        save_dir = os.path.dirname(save_path)
-        if not os.path.exists(save_dir):
-            raise ValueError(f"{save_dir} does not exist")
-
-    plotting_function = row_partition_plotting_function
-
-    if kwargs is None:
-        kwargs = {}
-
-    plotting_dict = {
-        "adata": adata,
-        "Lof_colors": colors,
-        "obs_search_term": obs_search_term,
-        "obs_embedding_key": obs_embedding_key,
-        "plot_background": plot_background,
-        "kwargs": kwargs,
-    }
-
-    if column_labels is not None:
-        plotting_dict["column_labels"] = column_labels
-
-    fig = general_plotting_function(
-        plotting_function, {}, plotting_dict, unit_size=unit_size, plot_all=plot_all
-    )
-
-    if save_path is not None:
-        fig.savefig(save_path, dpi=300, bbox_inches="tight")
+from matplotlib.gridspec import GridSpec
 
 
-def row_partition_plotting_function(ax, idx_dict, plotting_dict):
-    """
-    Plotting function for row partition.
+# ============================================================================
+# Configuration Dataclasses
+# ============================================================================
 
-    Args:
-        ax (matplotlib.axes.Axes): The axes on which to plot.
-        idx_dict (dict): A dictionary containing row and column indices.
-        plotting_dict (dict): A dictionary containing plotting parameters.
 
-    Returns:
-        matplotlib.axes.Axes: The modified axes object.
-    """
-    Lof_colors = plotting_dict["Lof_colors"]
-    column_labels = plotting_dict["column_labels"]
+@dataclass
+class PlotConfig:
+    """Base configuration for plotting."""
 
-    kwargs = plotting_dict["kwargs"].copy()
+    unit_size: int = 10
+    kwargs: dict = field(default_factory=dict)
 
-    adata = plotting_dict["adata"].copy()
-    obs_embedding_key = plotting_dict["obs_embedding_key"]
-    phate_df = adata.obsm[obs_embedding_key]
 
-    obs_search_term = plotting_dict["obs_search_term"]
+@dataclass(kw_only=True)
+class RowPartitionConfig(PlotConfig):
+    """Configuration for row partition plots."""
 
-    row_idx = idx_dict["row_idx"]
-    col_idx = idx_dict["col_idx"]
+    adata: ad.AnnData
+    obs_search_term: str
+    colors: list | np.ndarray
+    column_labels: Optional[list | np.ndarray] = None
+    obs_embedding_key: str = "X_phate"
+    plot_all: bool = True
+    plot_background: bool = True
 
-    color_name = Lof_colors[row_idx - 1]
 
-    if plotting_dict["plot_background"]:
-        ax.scatter(phate_df[:, 0], phate_df[:, 1], c="lightgrey", **kwargs)
+@dataclass(kw_only=True)
+class HyperparamGridConfig(PlotConfig):
+    """Configuration for hyperparameter search grids."""
 
-    colors = adata.obs_vector(color_name)
+    row_param_name: str
+    col_param_name: str
+    constant_param_name: str
+    row_param_values: list
+    col_param_values: list
+    constant_param_value: any = None
 
-    if colors.dtype != "object" and not isinstance(colors, pd.Categorical):
-        vmin = np.percentile(colors, 1)
-        vmax = np.percentile(colors, 99)
-        kwargs.update(
-            {
-                "vmin": vmin,
-                "vmax": vmax,
-                "cmap": "rainbow",
-            }
+
+# ============================================================================
+# Grid Label Rendering
+# ============================================================================
+
+
+class GridLabelRenderer:
+    """Handles rendering of row and column labels on grid plots."""
+
+    def __init__(self, fontsize: int = 35):
+        self.fontsize = fontsize
+        self.row_cmap = plt.cm.get_cmap("tab20")
+        self.col_cmap = plt.cm.get_cmap("Dark2")
+
+    def add_column_labels(
+        self,
+        ax: plt.Axes,
+        labels: list,
+        param_name: Optional[str] = None,
+    ) -> plt.Axes:
+        """Add colored column labels to the top of the grid."""
+        num_cols = len(labels)
+        col_limits = np.linspace(0, 1, num_cols + 1)
+
+        for col_idx, label in enumerate(labels):
+            left = col_limits[col_idx]
+            right = col_limits[col_idx + 1]
+            center = (left + right) / 2
+
+            ax.axvspan(left, right, facecolor=self.row_cmap(col_idx), alpha=0.5)
+
+            label_text = f"{param_name} = {label}" if param_name else str(label)
+            ax.annotate(
+                label_text,
+                xy=(center, 0.5),
+                xycoords="axes fraction",
+                va="center",
+                ha="center",
+                fontsize=self.fontsize,
+            )
+
+        ax.set_yticks([])
+        ax.set_xticks([])
+        ax.set_xlim(0, 1)
+
+        return ax
+
+    def add_row_labels(
+        self,
+        ax: plt.Axes,
+        labels: list,
+        param_name: Optional[str] = None,
+    ) -> plt.Axes:
+        """Add colored row labels to the left of the grid."""
+        num_rows = len(labels)
+        row_limits = np.linspace(0, 1, num_rows + 1)
+
+        # Reverse labels to go top-to-bottom
+        for row_idx, label in enumerate(reversed(labels)):
+            upper = row_limits[row_idx]
+            lower = row_limits[row_idx + 1]
+            center = (upper + lower) / 2
+
+            ax.axhspan(lower, upper, facecolor=self.col_cmap(row_idx), alpha=0.5)
+
+            label_text = f"{param_name} = {label}" if param_name else str(label)
+            ax.annotate(
+                label_text,
+                xy=(0.5, center),
+                xycoords="axes fraction",
+                va="center",
+                ha="center",
+                fontsize=self.fontsize,
+                rotation=90,
+            )
+
+        ax.set_yticks([])
+        ax.set_xticks([])
+        ax.set_ylim(0, 1)
+
+        return ax
+
+    def add_corner_label(
+        self,
+        ax: plt.Axes,
+        text: str,
+    ) -> plt.Axes:
+        """Add label to corner (top-left) cell."""
+        ax.annotate(
+            text,
+            xy=(0.5, 0.5),
+            xycoords="axes fraction",
+            va="center",
+            ha="center",
+            fontsize=25,
+        )
+        ax.set_xticks([])
+        ax.set_yticks([])
+
+        return ax
+
+
+# ============================================================================
+# Grid Layout Builders
+# ============================================================================
+
+
+class GridLayoutBuilder:
+    """Base class for building grid layouts."""
+
+    def __init__(
+        self,
+        num_rows: int,
+        num_cols: int,
+        unit_size: int = 10,
+        label_proportion: float = 0.20,
+    ):
+        self.num_rows = num_rows
+        self.num_cols = num_cols
+        self.unit_size = unit_size
+        self.label_proportion = label_proportion
+        self.label_renderer = GridLabelRenderer(fontsize=5 * unit_size)
+
+    def create_figure(self) -> tuple[plt.Figure, GridSpec]:
+        """Create figure and grid specification."""
+        width_ratios = [self.label_proportion] + [1] * self.num_cols
+        height_ratios = [self.label_proportion] + [1] * self.num_rows
+
+        fig = plt.figure(
+            figsize=(self.unit_size * self.num_cols, self.unit_size * self.num_rows),
+            constrained_layout=True,
         )
 
-    plotting_df = phate_df
+        gs = GridSpec(
+            self.num_rows + 1,
+            self.num_cols + 1,
+            figure=fig,
+            width_ratios=width_ratios,
+            height_ratios=height_ratios,
+        )
 
-    Lof_label_idxs = [
-        get_str_idx(label, adata.obs[obs_search_term])[0]
-        for label in column_labels
-        if label != "ALL"
-    ]
+        return fig, gs
 
-    current_plotting_label = column_labels[col_idx - 1]
 
-    if current_plotting_label == "ALL":
-        condition_df = plotting_df
+class RowPartitionGridBuilder(GridLayoutBuilder):
+    """Builder for row partition grid layouts."""
+
+    def build(
+        self,
+        config: RowPartitionConfig,
+        plotting_function: Callable,
+    ) -> plt.Figure:
+        """Build the complete row partition grid."""
+        # Setup column labels
+        if config.column_labels is None:
+            col_labels = np.unique(config.adata.obs[config.obs_search_term])
+            if config.plot_all:
+                col_labels = np.append(col_labels, "ALL")
+        else:
+            col_labels = config.column_labels
+
+        # Update dimensions
+        self.num_rows = len(config.colors)
+        self.num_cols = len(col_labels)
+
+        fig, gs = self.create_figure()
+
+        # Add column labels (top row)
+        col_label_ax = fig.add_subplot(gs[0, 1:])
+        self.label_renderer.add_column_labels(col_label_ax, col_labels)
+
+        # Add row labels (left column)
+        row_label_ax = fig.add_subplot(gs[1:, 0])
+        self.label_renderer.add_row_labels(row_label_ax, config.colors)
+
+        # Create grid cells
+        for row_idx in range(self.num_rows):
+            for col_idx in range(self.num_cols):
+                ax = fig.add_subplot(gs[row_idx + 1, col_idx + 1])
+
+                # Call plotting function with context
+                context = RowPartitionPlotContext(
+                    adata=config.adata,
+                    row_idx=row_idx,
+                    col_idx=col_idx,
+                    color_name=config.colors[row_idx],
+                    column_label=col_labels[col_idx],
+                    obs_search_term=config.obs_search_term,
+                    obs_embedding_key=config.obs_embedding_key,
+                    plot_background=config.plot_background,
+                    kwargs=config.kwargs.copy(),
+                )
+
+                plotting_function(ax, context)
+
+        return fig
+
+
+class HyperparamGridBuilder(GridLayoutBuilder):
+    """Builder for hyperparameter search grid layouts."""
+
+    def build(
+        self,
+        config: HyperparamGridConfig,
+        plotting_function: Callable,
+        plotting_context_factory: Callable,
+    ) -> plt.Figure:
+        """Build the complete hyperparameter grid."""
+        self.num_rows = len(config.row_param_values)
+        self.num_cols = len(config.col_param_values)
+
+        fig, gs = self.create_figure()
+
+        # Add column labels (top row)
+        col_label_ax = fig.add_subplot(gs[0, 1:])
+        self.label_renderer.add_column_labels(
+            col_label_ax,
+            config.col_param_values,
+            param_name=config.col_param_name,
+        )
+
+        # Add row labels (left column)
+        row_label_ax = fig.add_subplot(gs[1:, 0])
+        self.label_renderer.add_row_labels(
+            row_label_ax,
+            config.row_param_values,
+            param_name=config.row_param_name,
+        )
+
+        # Add corner label for constant parameter
+        if config.constant_param_value is not None:
+            corner_ax = fig.add_subplot(gs[0, 0])
+            label_text = f"{config.constant_param_name}={config.constant_param_value}"
+            self.label_renderer.add_corner_label(corner_ax, label_text)
+
+        # Create grid cells
+        for row_idx in range(self.num_rows):
+            for col_idx in range(self.num_cols):
+                ax = fig.add_subplot(gs[row_idx + 1, col_idx + 1])
+
+                # Create context using factory
+                context = plotting_context_factory(
+                    row_idx=row_idx,
+                    col_idx=col_idx,
+                    row_param_value=config.row_param_values[row_idx],
+                    col_param_value=config.col_param_values[col_idx],
+                )
+
+                plotting_function(ax, context)
+
+        return fig
+
+
+# ============================================================================
+# Plot Context Dataclasses
+# ============================================================================
+
+
+@dataclass
+class RowPartitionPlotContext:
+    """Context passed to row partition plotting functions."""
+
+    adata: ad.AnnData
+    row_idx: int
+    col_idx: int
+    color_name: str
+    column_label: str
+    obs_search_term: str
+    obs_embedding_key: str
+    plot_background: bool
+    kwargs: dict
+
+
+# ============================================================================
+# Plotting Functions
+# ============================================================================
+
+
+def plot_row_partition_cell(ax: plt.Axes, context: RowPartitionPlotContext) -> plt.Axes:
+    """Plot a single cell in a row partition grid."""
+    phate_df = context.adata.obsm[context.obs_embedding_key]
+    colors = context.adata.obs_vector(context.color_name)
+
+    # Plot background if requested
+    if context.plot_background:
+        bg_kwargs = {
+            k: v for k, v in context.kwargs.items() if k not in ("cmap", "vmin", "vmax")
+        }
+        ax.scatter(phate_df[:, 0], phate_df[:, 1], c="lightgrey", **bg_kwargs)
+
+    # Determine which data to plot based on column label
+    if context.column_label == "ALL":
+        plot_df = phate_df
+        plot_colors = colors
     else:
-        label_idxs = Lof_label_idxs[col_idx - 1]
-        condition_df = plotting_df[label_idxs, :]
-        colors = colors[label_idxs]
+        # Use native pandas for filtering
+        mask = context.adata.obs[context.obs_search_term] == context.column_label
+        label_idxs = np.where(mask)[0]
+        plot_df = phate_df[label_idxs, :]
+        plot_colors = colors[label_idxs]
 
-    ax.scatter(condition_df[:, 0], condition_df[:, 1], c=colors, **kwargs)
+    # Handle continuous vs categorical colors
+    kwargs = context.kwargs.copy()
+    if plot_colors.dtype != "object" and not isinstance(plot_colors, pd.Categorical):
+        kwargs.setdefault("vmin", np.percentile(plot_colors, 1))
+        kwargs.setdefault("vmax", np.percentile(plot_colors, 99))
+        kwargs.setdefault("cmap", "rainbow")
 
+    ax.scatter(plot_df[:, 0], plot_df[:, 1], c=plot_colors, **kwargs)
+
+    # Clean up axes
     ax.set_yticklabels([])
     ax.set_xticklabels([])
     ax.get_xaxis().set_ticks([])
@@ -151,193 +380,90 @@ def row_partition_plotting_function(ax, idx_dict, plotting_dict):
     return ax
 
 
-def general_plotting_function(
-    plotting_function,
-    param_info_dict=None,
-    plotting_dict=None,
-    hyperparam_search=False,
-    plot_all=False,
-    blank=False,
-    fontsize=35,
-    unit_size=10,
-    param_plot_proportion=0.20,
-):
+def plot_row_partitions(
+    adata: ad.AnnData,
+    obs_search_term: str,
+    colors: list | np.ndarray,
+    column_labels: Optional[list | np.ndarray] = None,
+    obs_embedding_key: str = "X_phate",
+    kwargs: Optional[dict] = None,
+    plot_all: bool = True,
+    plot_background: bool = True,
+    unit_size: int = 20,
+    save_path: Optional[str] = None,
+) -> plt.Figure:
     """
-    A general plotting function that creates a grid of subplots for visualization.
+    Plot row partitions of the given AnnData object.
 
     Args:
-        plotting_function (callable): The function used to plot on each subplot.
-        param_info_dict (dict, optional): A dictionary containing information about the parameters for hyperparameter search. Defaults to None.
-        plotting_dict (dict, optional): A dictionary containing information for plotting. Defaults to None.
-        hyperparam_search (bool, optional): A boolean indicating whether hyperparameter search is enabled. Defaults to False.
-        plot_all (bool, optional): A boolean indicating whether to plot all partitions. Defaults to False.
-        blank (bool, optional): A boolean indicating whether to return a blank figure. Defaults to False.
-        fontsize (int, optional): The fontsize for the annotations. Defaults to 35.
-        unit_size (int, optional): The size of each subplot in units. Defaults to 10.
-        param_plot_proportion (float, optional): The proportion of the plot dedicated to parameter labels. Defaults to 0.20.
+        adata: The AnnData object containing the data.
+        obs_search_term: The search term for selecting the observations.
+        colors: List or array of colors for the plot.
+        column_labels: List or array of column labels.
+        obs_embedding_key: The key for the observation embedding.
+        kwargs: Additional keyword arguments for the plotting function.
+        plot_all: Whether to plot all partitions.
+        plot_background: Whether to plot the background.
+        unit_size: The size of each unit in the plot.
+        save_path: The path to save the plot.
 
     Returns:
-        matplotlib.figure.Figure: The created figure object.
+        The created figure.
     """
-    if hyperparam_search is True:
-        param_dict = param_info_dict["param_dict"]
+    if save_path is not None:
+        save_dir = os.path.dirname(save_path)
+        if save_dir and not os.path.exists(save_dir):
+            raise ValueError(f"{save_dir} does not exist")
 
-        row_param_name = param_info_dict["row_label"]
-        col_param_name = param_info_dict["col_label"]
-        constant_param_name = param_info_dict["constant_label"]
+    if kwargs is None:
+        kwargs = {}
 
-        row_param_list = param_dict[row_param_name]
-        col_param_list = param_dict[col_param_name]
-
-        num_rows = len(row_param_list)
-        num_cols = len(col_param_list)
-
-    else:
-        adata = plotting_dict["adata"].copy()
-        search_obs_term = plotting_dict["obs_search_term"]
-        color_names = plotting_dict["Lof_colors"]
-
-        row_labels = color_names
-
-        if not plotting_dict.get("column_labels"):
-            col_labels = np.unique(adata.obs[search_obs_term])
-
-            if plot_all:
-                col_labels = np.append(col_labels, "ALL")
-
-            plotting_dict["column_labels"] = col_labels
-
-        else:
-            col_labels = plotting_dict["column_labels"]
-
-        num_cols = len(col_labels)
-        num_rows = len(row_labels)
-
-    row_cmap = plt.cm.get_cmap("tab20")
-    col_cmap = plt.cm.get_cmap("Dark2")
-
-    width_ratios = [param_plot_proportion] + np.repeat(1, num_cols).tolist()
-    height_ratios = [param_plot_proportion] + np.repeat(1, num_rows).tolist()
-
-    anno_opts = dict(
-        xycoords="axes fraction", va="center", ha="center", fontsize=5 * unit_size
+    config = RowPartitionConfig(
+        adata=adata,
+        obs_search_term=obs_search_term,
+        colors=colors,
+        column_labels=column_labels,
+        obs_embedding_key=obs_embedding_key,
+        plot_all=plot_all,
+        plot_background=plot_background,
+        unit_size=unit_size,
+        kwargs=kwargs,
     )
 
-    col_param_limits = np.linspace(0, 1, num_cols + 1)
-    row_param_limits = np.linspace(0, 1, num_rows + 1)
-
-    fig = plt.figure(
-        figsize=(unit_size * num_cols, unit_size * num_rows), constrained_layout=True
+    builder = RowPartitionGridBuilder(
+        num_rows=len(colors),
+        num_cols=1,  # Will be updated in build()
+        unit_size=unit_size,
     )
 
-    if blank:
-        return fig
+    fig = builder.build(config, plot_row_partition_cell)
 
-    gs = fig.add_gridspec(
-        num_rows + 1,
-        num_cols + 1,
-        width_ratios=width_ratios,
-        height_ratios=height_ratios,
-    )
+    if save_path is not None:
+        fig.savefig(save_path, dpi=300, bbox_inches="tight")
 
-    plot_idx = 0
-    first = True
-    for row_idx, col_idx in itertools.product(range(num_rows + 1), range(num_cols + 1)):
-        # this creates the labels on the first row and first column
-        if row_idx == 0 or col_idx == 0:
-            if first:
-                # this makes one long plot that spans the first row
-                init_row = fig.add_subplot(gs[0, 1:])
-                # this splits the first row into multiple labels based on the number of columns and annotates each one
-                for col_num in range(num_cols):
-                    left_limit = col_param_limits[col_num]
-                    right_limit = col_param_limits[col_num + 1]
-
-                    annotate_xy = (((left_limit + right_limit) / 2), 0.5)
-                    anno_opts["xy"] = annotate_xy
-
-                    init_row.axvspan(
-                        left_limit, right_limit, facecolor=row_cmap(col_num), alpha=0.5
-                    )
-
-                    if hyperparam_search is True:
-                        init_row.annotate(
-                            f"{col_param_name} = {col_param_list[col_num]}", **anno_opts
-                        )
-                    else:
-                        init_row.annotate(f"{col_labels[col_num]}", **anno_opts)
-
-                    init_row.set_yticks([])
-                    init_row.set_xticks([])
-                    init_row.set_xlim(0, 1)
-
-                # this makes one long plot that spans the first column
-                init_col = fig.add_subplot(gs[1:, 0])
-
-                # this splits the first column into multiple labels based on the number of rows and annotates each one
-                for row_num in range(num_rows):
-                    upper_limit = row_param_limits[row_num]
-                    lower_limit = row_param_limits[row_num + 1]
-
-                    annotate_xy = (0.5, ((lower_limit + upper_limit) / 2))
-                    anno_opts["xy"] = annotate_xy
-
-                    init_col.axhspan(
-                        lower_limit, upper_limit, facecolor=col_cmap(row_num), alpha=0.5
-                    )
-
-                    # Indexing is -(row_num+1) to make the plots go from top to bottom
-                    if hyperparam_search is True:
-                        init_col.annotate(
-                            f"{row_param_name} = {row_param_list[-(row_num+1)]}",
-                            rotation=90,
-                            **anno_opts,
-                        )
-                    else:
-                        init_col.annotate(
-                            f"{row_labels[-(row_num+1)]}", rotation=90, **anno_opts
-                        )
-
-                    init_col.set_yticks([])
-                    init_col.set_xticks([])
-                    init_col.set_ylim(0, 1)
-
-                # add a small box in the upper right corner to indicate what the constant parameter is for the hyperparameter search
-                if hyperparam_search == True:
-                    constant_var_name = param_info_dict["constant_label"]
-                    constant_param = fig.add_subplot(gs[0, 0])
-                    anno_opts["xy"] = (0.5, 0.5)
-                    anno_opts["fontsize"] = 25
-                    constant_param.annotate(
-                        f"{constant_var_name}={param_dict[constant_param_name]}",
-                        **anno_opts,
-                    )
-                    constant_param.set_xticks([])
-                    constant_param.set_yticks([])
-
-                first == False
-                continue
-
-        ax = fig.add_subplot(gs[row_idx, col_idx])
-
-        idx_dict = {"row_idx": row_idx, "col_idx": col_idx, "plot_idx": plot_idx}
-
-        ax = plotting_function(ax, idx_dict, plotting_dict)
-        plot_idx += 1
     return fig
 
 
-def get_legend(adata: ad.AnnData, color_name: str, label_name: str = None):
+# ============================================================================
+# Utility Functions
+# ============================================================================
+
+
+def get_legend(
+    adata: ad.AnnData,
+    color_name: str,
+    label_name: Optional[str] = None,
+) -> tuple[list[mpatches.Patch], np.ndarray]:
     """
-    Get patches from adata.obs[color_name] to be used for creating a legend and returns the list of colors as well.
+    Get patches from adata.obs[color_name] for creating a legend.
 
     Args:
-        adata (ad.AnnData): AnnData object.
-        color_name (str): Name of the anndata obs column to use for coloring (i.e., 'cell_line_colors').
-        label_name (str, optional): The name of the label column. Defaults to None.
+        adata: AnnData object.
+        color_name: Name of the anndata obs column to use for coloring.
+        label_name: The name of the label column.
 
     Returns:
-        tuple: A tuple containing a list of patches for the legend and the list of colors.
+        A tuple containing a list of patches for the legend and the colors array.
     """
     colors = adata.obs_vector(color_name)
 
@@ -357,139 +483,78 @@ def get_legend(adata: ad.AnnData, color_name: str, label_name: str = None):
     return patch_list, colors
 
 
-def combine_Lof_plots(
-    list_of_plots: list[mpl.figure.Figure] = None,
-    fig_dims: tuple = None,
-    default_padding: tuple = (0, 0),
-    default_padding_color: tuple = 255,
+def combine_figures_with_gridspec(
+    figures: list[plt.Figure],
+    grid_rows: int,
+    grid_cols: int,
     unit_size: int = 5,
-    save_path: str = None,
-    title_kwargs: dict = None,
-    title: str = None,
-    inline: bool = False,
-):
+    title: Optional[str] = None,
+    title_kwargs: Optional[dict] = None,
+    save_path: Optional[str] = None,
+) -> plt.Figure:
     """
-    Combines a list of matplotlib figures into a single figure with specified dimensions.
+    Combine multiple figures into a single figure using GridSpec.
+
+    This is a cleaner replacement for the array manipulation approach.
 
     Args:
-        list_of_plots (list[mpl.figure.Figure], optional): List of matplotlib figures to be combined. Defaults to None.
-        fig_dims (tuple, optional): Dimensions of the final combined figure in terms of number of rows and columns. Defaults to None.
-        default_padding (tuple, optional): Padding to be applied to each figure in terms of number of rows and columns. Defaults to (0, 0).
-        default_padding_color (tuple, optional): Color value (RGB) to be used for the default padding. Defaults to 255.
-        unit_size (int, optional): The size of each unit in the plot. Defaults to 5.
-        save_path (str, optional): Path to save the combined figure. Defaults to None.
-        title_kwargs (dict, optional): Keyword arguments for customizing the title of the combined figure. Defaults to None.
-        title (str, optional): Title of the combined figure. Defaults to None.
-        inline (bool, optional): If True, the function will automatically retrieve all open figures and combine them. Defaults to False.
+        figures: List of matplotlib figures to combine.
+        grid_rows: Number of rows in the final grid.
+        grid_cols: Number of columns in the final grid.
+        unit_size: Size of each unit in the plot.
+        title: Title for the combined figure.
+        title_kwargs: Keyword arguments for the title.
+        save_path: Path to save the combined figure.
 
     Returns:
-        None
+        Combined figure.
     """
-    if inline:
-        list_of_plots = [
-            manager.canvas.figure
-            for manager in matplotlib._pylab_helpers.Gcf.get_all_fig_managers()
-        ]
-
-    # converts the figures into numpy arrays
-    for fig_idx, fig in enumerate(list_of_plots):
-        if isinstance(fig, tuple):
-            fig = fig[0]
-
-        canvas = fig.canvas
-        canvas.draw()
-
-        element = np.array(canvas.buffer_rgba())
-
-        list_of_plots[fig_idx] = element
-
-    if inline:
-        for fig in plt.get_fignums():
-            plt.close(fig)
-
-    max_figure_dims = np.max(
-        [(fig.shape[0], fig.shape[1]) for fig in list_of_plots], axis=0
-    )
-
-    for fig_idx, fig in enumerate(list_of_plots):
-        row_diff = max_figure_dims[0] - fig.shape[0]
-        col_diff = max_figure_dims[1] - fig.shape[1]
-
-        if row_diff > 0:
-            fig = np.pad(
-                fig,
-                ((floor(row_diff / 2), ceil(row_diff / 2)), (0, 0), (0, 0)),
-                "constant",
-                constant_values=255,
-            )
-        if col_diff > 0:
-            fig = np.pad(
-                fig,
-                ((0, 0), (floor(col_diff / 2), ceil(col_diff / 2)), (0, 0)),
-                "constant",
-                constant_values=255,
-            )
-
-        default_row_padding = default_padding[0]
-        default_col_padding = default_padding[1]
-
-        fig = np.pad(
-            fig,
-            (
-                (default_row_padding, default_row_padding),
-                (default_col_padding, default_col_padding),
-                (0, 0),
-            ),
-            "constant",
-            constant_values=default_padding_color,
-        )
-
-        list_of_plots[fig_idx] = fig
-
-    final_num_rows = fig_dims[0]
-    final_num_cols = fig_dims[1]
-
-    if len(list_of_plots) < final_num_rows * final_num_cols:
-        fig_num_diff = final_num_rows * final_num_cols - len(list_of_plots)
-        for _ in range(fig_num_diff):
-            list_of_plots.append(np.ones_like(fig) * default_padding_color)
-
-    # shapes the figures generated above into the final figure dimensions
-    counter = 0
-    fig_rows = []
-    for _ in range(final_num_rows):
-        fig_row = list_of_plots[counter : counter + final_num_cols]
-        fig_row = np.hstack(fig_row)
-        fig_rows.append(fig_row)
-        counter += final_num_cols
-
-    fig_rows = tuple(fig_rows)
-
-    plot_array = np.vstack(fig_rows)
-
-    # plots the final figure
-    fig, ax = plt.subplots(
-        figsize=(unit_size * final_num_cols, unit_size * final_num_rows),
+    combined_fig = plt.figure(
+        figsize=(unit_size * grid_cols, unit_size * grid_rows),
         constrained_layout=True,
-        dpi=600,
     )
 
-    ax.matshow(plot_array)
+    gs = GridSpec(grid_rows, grid_cols, figure=combined_fig)
+
+    for idx, fig in enumerate(figures):
+        if idx >= grid_rows * grid_cols:
+            break
+
+        row = idx // grid_cols
+        col = idx % grid_cols
+
+        # Create subplot in combined figure
+        ax_combined = combined_fig.add_subplot(gs[row, col])
+
+        # Copy content from source figure
+        # Get the first axes from the source figure
+        if fig.axes:
+            source_ax = fig.axes[0]
+
+            # Copy images, collections, lines, etc.
+            for collection in source_ax.collections:
+                ax_combined.add_collection(collection)
+
+            for line in source_ax.lines:
+                ax_combined.add_line(line)
+
+            for patch in source_ax.patches:
+                ax_combined.add_patch(patch)
+
+            # Copy limits and properties
+            ax_combined.set_xlim(source_ax.get_xlim())
+            ax_combined.set_ylim(source_ax.get_ylim())
+            ax_combined.axis("off")
 
     if title:
         if title_kwargs is None:
             title_kwargs = {
-                "fontsize": unit_size * final_num_cols,
+                "fontsize": unit_size * grid_cols,
                 "fontweight": "bold",
             }
+        combined_fig.suptitle(title, **title_kwargs)
 
-        ax.set_title(title, **title_kwargs)
-
-    ax.axis("off")
     if save_path:
-        plt.savefig(save_path, dpi=600, bbox_inches="tight")
-    elif inline:
-        plt.show()
-        plt.close()
-    else:
-        return fig
+        combined_fig.savefig(save_path, dpi=600, bbox_inches="tight")
+
+    return combined_fig

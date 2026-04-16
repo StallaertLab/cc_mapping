@@ -20,4 +20,4 @@ __all__ = [
     "create_boolean_label_combination",
 ]
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

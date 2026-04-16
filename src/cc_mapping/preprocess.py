@@ -1,7 +1,7 @@
+import re
+
 import numpy as np
 import anndata as ad
-
-from .utils import get_str_idx
 
 
 def row_data_partitioning(
@@ -26,11 +26,32 @@ def row_data_partitioning(
     Returns:
         ad.AnnData: The partitioned AnnData object.
     """
-    search_idxs, _ = get_str_idx(
-        search_str, adata.obs[search_obs], regex=regex, regex_flags=regex_flags
-    )
+    obs_values = adata.obs[search_obs]
 
-    adata = adata[search_idxs, :].copy()
+    if regex:
+        # Build regex flags
+        flags = 0
+        if regex_flags:
+            for flag in regex_flags:
+                flags |= getattr(re, flag)
+
+        # Handle single pattern or multiple patterns
+        if isinstance(search_str, str):
+            pattern = search_str
+        else:
+            # Combine multiple patterns with OR
+            pattern = "|".join(search_str)
+
+        mask = obs_values.astype(str).str.contains(
+            pattern, regex=True, flags=flags, na=False
+        )
+    else:
+        # Use native pandas isin() for exact matching
+        if isinstance(search_str, str):
+            search_str = [search_str]
+        mask = obs_values.isin(search_str)
+
+    adata = adata[mask, :].copy()
 
     if reset_idx is True:
         adata.obs.index = np.arange(adata.shape[0]).astype(str)
