@@ -7,8 +7,6 @@ thresholding and label collapsing.
 Priority 3 - To be implemented after Priority 1 & 2 tests pass.
 """
 
-import pytest
-from src.cc_mapping.thresholding import GMMThresholding
 
 # TODO: Add tests for:
 # - Complete workflow: fit → automatic categorize → plot

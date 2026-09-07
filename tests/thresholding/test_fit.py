@@ -5,7 +5,6 @@ validation of n_components parameter, and proper storage of fit results.
 """
 
 import pytest
-from src.cc_mapping.thresholding import GMMThresholding
 
 
 def test_fit_success(sample_adata, sample_gmm_thresholding_instance):
@@ -14,18 +13,18 @@ def test_fit_success(sample_adata, sample_gmm_thresholding_instance):
     gmm = sample_gmm_thresholding_instance
     gmm.fit(n_components=n_components)
 
-    assert (
-        gmm._gmm_info.data_probs is not None
-    ), "GMM probabilities should not be None after fitting."
+    assert gmm._gmm_info.data_probs is not None, (
+        "GMM probabilities should not be None after fitting."
+    )
     assert len(gmm._gmm_info.data_probs) == len(sample_adata), (
         "Length of GMM probabilities should match the number of samples."
     )
     assert len(gmm._gmm_info.data_probs[0]) == n_components, (
         "Number of GMM probabilities should match the number of components."
     )
-    assert (
-        gmm._internal_data.gmm_info == gmm._gmm_info
-    ), "Internal GMM info should match the fitted GMM info."
+    assert gmm._internal_data.gmm_info == gmm._gmm_info, (
+        "Internal GMM info should match the fitted GMM info."
+    )
 
 
 @pytest.mark.parametrize(

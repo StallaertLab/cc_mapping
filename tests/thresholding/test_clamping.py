@@ -9,10 +9,11 @@ The clamping prevents IndexError when accessing color arrays or label arrays
 and ensures visualization matches actual cell assignments.
 """
 
-import pytest
-import numpy as np
 import anndata as ad
 import matplotlib.pyplot as plt
+import numpy as np
+import pytest
+
 from src.cc_mapping.thresholding import GMMThresholding
 
 
@@ -72,9 +73,9 @@ def test_clamping_prevents_index_error_in_labeling(extreme_overlap_adata):
 
     # Verify only valid labels exist
     unique_labels = set(gmm.adata.obs["labels"].unique())
-    assert unique_labels.issubset(
-        {"low", "high"}
-    ), f"Labels should only be 'low' or 'high', got: {unique_labels}"
+    assert unique_labels.issubset({"low", "high"}), (
+        f"Labels should only be 'low' or 'high', got: {unique_labels}"
+    )
 
 
 def test_clamping_prevents_index_error_in_plotting_vertical(extreme_overlap_adata):

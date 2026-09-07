@@ -1,21 +1,19 @@
-from typing import Optional
 import warnings
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
-import numpy as np  # noqa: E402
+import numpy as np
 
 np.seterr(all="ignore")
 
-import re  # noqa: E402
-import anndata as ad  # noqa: E402
-from tqdm import tqdm  # noqa: E402
+import re
 
-import matplotlib.pyplot as plt  # noqa: E402
-
-from sklearn import metrics  # noqa: E402
-from sklearn.model_selection import train_test_split  # noqa: E402
-from sklearn.ensemble import RandomForestClassifier  # noqa: E402
+import anndata as ad
+import matplotlib.pyplot as plt
+from sklearn import metrics
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from tqdm import tqdm
 
 
 def train_random_forest_model(
@@ -112,8 +110,8 @@ def random_forest_feature_selection(
     verbose: bool = True,
     save_path: str = None,
     cutoff_method: str = "increment",
-    train_test_split_params: Optional[dict] = None,
-    rf_params: Optional[dict] = None,
+    train_test_split_params: dict | None = None,
+    rf_params: dict | None = None,
 ) -> ad.AnnData:
     """
     Trains a random forest classifier on the training feature set and labels using one of two methods:
@@ -316,7 +314,7 @@ def random_forest_feature_selection(
             label=f"Optimal Feature Set Size: {optim_feat_num}",
         )
         plt.title(
-            f"Stable Counter {stable_counter} - Stable Threshold {threshold*100}% - Cutoff Method: {cutoff_method}"
+            f"Stable Counter {stable_counter} - Stable Threshold {threshold * 100}% - Cutoff Method: {cutoff_method}"
         )
         plt.xticks(x_axis)
 

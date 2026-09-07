@@ -7,8 +7,6 @@ color mappings.
 Priority 2 - To be implemented after Priority 1 tests pass.
 """
 
-import pytest
-from src.cc_mapping.thresholding import GMMThresholding
 
 # TODO: Add tests for:
 # - _plot_vertical_linear_decision_boundaries color count
