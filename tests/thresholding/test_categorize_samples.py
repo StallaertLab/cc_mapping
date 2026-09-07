@@ -20,9 +20,9 @@ def test_categorize_samples_default_success(sample_gmm_thresholding_instance):
     ):
         gmm.categorize_samples()
 
-    assert (
-        not gmm._manual_decision_boundaries
-    ), "manual_decision_boundaries should be False by default."
+    assert not gmm._manual_decision_boundaries, (
+        "manual_decision_boundaries should be False by default."
+    )
 
 
 def test_categorize_samples_with_ordered_labels(sample_gmm_thresholding_instance):
@@ -34,9 +34,9 @@ def test_categorize_samples_with_ordered_labels(sample_gmm_thresholding_instance
     gmm.categorize_samples(ordered_labels=["Low", "High"])
 
     # Should not use manual thresholding
-    assert (
-        not gmm._manual_decision_boundaries
-    ), "Should use automatic thresholding when no manual_thresholds provided"
+    assert not gmm._manual_decision_boundaries, (
+        "Should use automatic thresholding when no manual_thresholds provided"
+    )
 
     # Should have labels assigned
     assert "labels" in gmm.adata.obs.columns, "Labels should be added to adata.obs"

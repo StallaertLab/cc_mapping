@@ -5,9 +5,8 @@ categories by using duplicate labels. This is useful for cross-dataset robustnes
 where many components provide adaptive boundaries but fewer categories are desired.
 """
 
-import pytest
 import numpy as np
-
+import pytest
 
 ### Basic Label Collapsing Tests ###
 
@@ -23,9 +22,9 @@ def test_collapse_to_binary_automatic_thresholding(sample_gmm_thresholding_insta
     )
 
     # Should use automatic thresholding
-    assert (
-        not gmm._manual_decision_boundaries
-    ), "Should use automatic thresholding when manual_thresholds not provided"
+    assert not gmm._manual_decision_boundaries, (
+        "Should use automatic thresholding when manual_thresholds not provided"
+    )
 
     # Should have 1 threshold (2 categories)
     thresholds = gmm.return_thresholds()
@@ -69,14 +68,14 @@ def test_collapse_to_binary_manual_thresholding(sample_gmm_thresholding_instance
     )
 
     # Should use manual thresholding
-    assert (
-        gmm._manual_decision_boundaries
-    ), "Should use manual thresholding when manual_thresholds provided"
+    assert gmm._manual_decision_boundaries, (
+        "Should use manual thresholding when manual_thresholds provided"
+    )
 
     # Should use the exact threshold provided
-    assert (
-        gmm.return_thresholds() == manual_threshold
-    ), "Should use the provided manual threshold"
+    assert gmm.return_thresholds() == manual_threshold, (
+        "Should use the provided manual threshold"
+    )
 
     # Verify labels
     unique_labels = set(gmm.adata.obs["labels"].unique())
@@ -124,12 +123,12 @@ def test_collapse_many_to_few(sample_gmm_thresholding_instance):
     assert len(gmm.return_thresholds()) == 1, "Should have 1 threshold for 2 categories"
 
     # Verify condensed probabilities were created
-    assert (
-        gmm._internal_data.gmm_info.condensed_data_probs is not None
-    ), "Condensed probabilities should be created"
-    assert (
-        gmm._internal_data.gmm_info.condensed_data_probs.shape[1] == 2
-    ), "Condensed probabilities should have 2 columns for 2 categories"
+    assert gmm._internal_data.gmm_info.condensed_data_probs is not None, (
+        "Condensed probabilities should be created"
+    )
+    assert gmm._internal_data.gmm_info.condensed_data_probs.shape[1] == 2, (
+        "Condensed probabilities should have 2 columns for 2 categories"
+    )
 
     # Verify labels
     unique_labels = set(gmm.adata.obs["labels"].unique())
@@ -162,9 +161,9 @@ def test_collapse_preserves_n_components(sample_gmm_thresholding_instance):
     )
 
     # n_components should still be 8, not changed to 2
-    assert (
-        gmm._gmm_info.n_components == n_components
-    ), f"n_components should remain {n_components} after collapsing, not be mutated"
+    assert gmm._gmm_info.n_components == n_components, (
+        f"n_components should remain {n_components} after collapsing, not be mutated"
+    )
 
 
 def test_collapse_creates_condensed_probabilities(sample_gmm_thresholding_instance):
@@ -214,9 +213,9 @@ def test_collapse_with_sequential_groups(sample_gmm_thresholding_instance):
     }, "Should handle sequential duplicate patterns"
 
     # Should have 1 threshold
-    assert (
-        len(gmm.return_thresholds()) == 1
-    ), "Should have 1 threshold for 2 unique labels"
+    assert len(gmm.return_thresholds()) == 1, (
+        "Should have 1 threshold for 2 unique labels"
+    )
 
 
 def test_collapse_rejects_non_contiguous_groups(sample_gmm_thresholding_instance):
@@ -277,9 +276,9 @@ def test_collapse_with_all_same_label(sample_gmm_thresholding_instance):
 
     # Should have 0 thresholds (only 1 category)
     thresholds = gmm.return_thresholds()
-    assert (
-        len(thresholds) == 0
-    ), "Should have no thresholds when all components map to one category"
+    assert len(thresholds) == 0, (
+        "Should have no thresholds when all components map to one category"
+    )
 
     # All samples should get same label
     unique_labels = set(gmm.adata.obs["labels"].unique())

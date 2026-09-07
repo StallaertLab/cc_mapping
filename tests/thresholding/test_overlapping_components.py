@@ -4,9 +4,10 @@ This module tests scenarios where GMM components overlap significantly,
 causing the condensed probabilities to flip-flop and create multiple transitions.
 """
 
-import pytest
-import numpy as np
 import anndata as ad
+import numpy as np
+import pytest
+
 from src.cc_mapping.thresholding import GMMThresholding
 
 
@@ -146,12 +147,12 @@ def test_no_warning_for_clean_separation():
                 or "overlapping" in str(w.message).lower()
             )
         ]
-        assert (
-            len(threshold_warnings) == 0
-        ), f"Should not warn for clean separated data, but got: {[str(w.message) for w in threshold_warnings]}"
+        assert len(threshold_warnings) == 0, (
+            f"Should not warn for clean separated data, but got: {[str(w.message) for w in threshold_warnings]}"
+        )
 
     # Should have exactly 1 threshold for 2 unique labels
     thresholds = gmm.return_thresholds()
-    assert (
-        len(thresholds) == 1
-    ), f"Expected 1 threshold for clean data, got {len(thresholds)}"
+    assert len(thresholds) == 1, (
+        f"Expected 1 threshold for clean data, got {len(thresholds)}"
+    )

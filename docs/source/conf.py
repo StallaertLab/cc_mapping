@@ -126,9 +126,10 @@ source_suffix = {
 }
 
 # -- Generate API reference pages from templates ----------------------------
-import jinja2  # noqa: E402
-from pathlib import Path  # noqa: E402
-from api_reference import API_REFERENCE  # noqa: E402
+from pathlib import Path
+
+import jinja2
+from api_reference import API_REFERENCE
 
 # Define templates for API reference pages
 rst_templates = [

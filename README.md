@@ -1,14 +1,10 @@
 # cc_mapping# Cell Cycle Mapping Package
 
-
-
 [![PyPI version](https://badge.fury.io/py/cc-mapping.svg)](https://badge.fury.io/py/cc-mapping)## Step 1: Install Environment
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)From the root directory of this repository:
-
-
 
 **Gaussian Mixture Model-based thresholding for single-cell gene expression analysis**```
 
@@ -16,11 +12,7 @@ conda env create -f .\environments\cc_mapping.yml
 
 `cc_mapping` provides robust statistical methods for categorizing cells based on gene expression levels using Gaussian Mixture Models (GMMs). Originally developed for cell cycle analysis, it's applicable to any single-cell RNA-seq thresholding task.```
 
-
-
 ## Features## Step 2: Update Global Variables
-
-
 
 - 🎯 **Automatic thresholding** using GMM-based statistical inferenceDue to the fact this is not an actual package, whenever you want to use it, you will have to tell your computer where to look. You will need to update these two files:
 
@@ -34,17 +26,13 @@ conda env create -f .\environments\cc_mapping.yml
 
 - ⚙️ **Flexible configuration** with manual threshold overrides when neededReplace the variable 'cc_mapping_package_dir' with the path to the root directory for the cc_mapping repository.
 
-
-
 ## InstallationThis means that if you want to use the cc_mapping package in another folder, you should copy this GLOBAL VARIABLES folder into that directory and add this to the imports of your python scripts
-
-
 
 Install from PyPI using pip:```
 
 import sys
 
-```bashsys.path.append(os.getcwd())
+````bashsys.path.append(os.getcwd())
 
 pip install cc-mapping
 
@@ -90,7 +78,7 @@ adata = gmm.return_adata()
 # Visualize results
 fig = gmm.plot_density()
 fig.savefig('pcna_thresholding.png')
-```
+````
 
 ## Sequential Thresholding
 
@@ -102,12 +90,9 @@ from cc_mapping import SequentialGMM
 # Initialize sequential thresholding
 seq_gmm = SequentialGMM(
     adata=adata,
-    features=['PCNA', 'CDK1'],
-    parent_labels=['All'],
-    ordered_labels_list=[
-        ['PCNA-', 'PCNA+'],
-        ['CDK1-', 'CDK1+']
-    ]
+    features=["PCNA", "CDK1"],
+    parent_labels=["All"],
+    ordered_labels_list=[["PCNA-", "PCNA+"], ["CDK1-", "CDK1+"]],
 )
 
 # Run sequential refinement
@@ -116,12 +101,12 @@ adata = seq_gmm.return_adata()
 
 # Collapse labels to final categories
 seq_gmm.collapse_labels(
-    final_labels=['G0', 'G1', 'S', 'G2M'],
+    final_labels=["G0", "G1", "S", "G2M"],
     collapse_map={
-        'PCNA-_CDK1-': 'G0',
-        'PCNA+_CDK1-': 'G1',
-        'PCNA+_CDK1+': ['S', 'G2M']
-    }
+        "PCNA-_CDK1-": "G0",
+        "PCNA+_CDK1-": "G1",
+        "PCNA+_CDK1+": ["S", "G2M"],
+    },
 )
 ```
 
@@ -134,14 +119,14 @@ from cc_mapping import create_boolean_label_combination
 
 adata = create_boolean_label_combination(
     adata=adata,
-    obs_key_1='treatment',
-    match_values_1=['control'],
-    obs_key_2='cell_cycle',
-    match_values_2=['G0'],
-    operator='AND',
-    output_obs_key='control_G0',
-    true_label='control_G0',
-    false_label='other'
+    obs_key_1="treatment",
+    match_values_1=["control"],
+    obs_key_2="cell_cycle",
+    match_values_2=["G0"],
+    operator="AND",
+    output_obs_key="control_G0",
+    true_label="control_G0",
+    false_label="other",
 )
 ```
 
