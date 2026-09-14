@@ -9,25 +9,24 @@ GMMThresholding
     Main class for single-feature GMM thresholding
 """
 
-import warnings
 import numbers
-from string import ascii_uppercase
+import warnings
 from collections import OrderedDict
-from typing import Dict, List, Optional, Union
 from pathlib import Path
+from string import ascii_uppercase
 
 import anndata as ad
-from matplotlib.figure import Figure
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.figure import Figure
 from sklearn.mixture import GaussianMixture
 
 from .base import (
-    _GaussianMixtureModelInfo,
-    _DecisionBoundariesModel,
-    _SingleThresholdingEventModel,
     GaussianMixtureModelBase,
+    _DecisionBoundariesModel,
+    _GaussianMixtureModelInfo,
+    _SingleThresholdingEventModel,
 )
 
 
@@ -62,8 +61,8 @@ class GMMThresholding(GaussianMixtureModelBase):
         feature: str,
         label_obs_save_str: str,
         thresholding_events_key: str = "gmm_thresholding_events",
-        layer: Optional[str] = None,
-        gmm_kwargs: Optional[dict] = None,
+        layer: str | None = None,
+        gmm_kwargs: dict | None = None,
         random_state: int = 42,
     ):
         """Initialize the GMMThresholding object.
@@ -170,7 +169,7 @@ class GMMThresholding(GaussianMixtureModelBase):
         self.thresholding_events_key = thresholding_events_key
         self.label_obs_save_str = label_obs_save_str
         self.feature: str = feature
-        self.layer: Optional[str] = layer
+        self.layer: str | None = layer
         self.random_state: int = random_state
 
         # variable initialization
@@ -191,11 +190,11 @@ class GMMThresholding(GaussianMixtureModelBase):
         else:
             raise TypeError("gmm_kwargs must be a dictionary or None")
 
-        self._gmm_info: Optional[_GaussianMixtureModelInfo] = _GaussianMixtureModelInfo(
+        self._gmm_info: _GaussianMixtureModelInfo | None = _GaussianMixtureModelInfo(
             gmm_kwargs=self.gmm_kwargs,
         )
-        self._decision_boundaries: Optional[_DecisionBoundariesModel] = None
-        self._internal_data: Optional[_SingleThresholdingEventModel] = (
+        self._decision_boundaries: _DecisionBoundariesModel | None = None
+        self._internal_data: _SingleThresholdingEventModel | None = (
             _SingleThresholdingEventModel(
                 gmm_info=self._gmm_info,
                 feature_name=self.feature,
@@ -316,13 +315,13 @@ class GMMThresholding(GaussianMixtureModelBase):
     def plot_hist_distribution_with_boundaries(
         self,
         num_std: int = 5,
-        title: Optional[str] = None,
-        hist_kwargs: Optional[Dict] = None,
+        title: str | None = None,
+        hist_kwargs: dict | None = None,
         cmap: plt.cm.ScalarMappable = plt.get_cmap("rainbow"),
         ax: plt.Axes = None,
-        x_axis_limits: Optional[tuple] = None,
+        x_axis_limits: tuple | None = None,
         resolution: int = 1000,
-        save_path: Optional[Union[str, Path]] = None,
+        save_path: str | Path | None = None,
     ) -> plt.Axes:
         """Plot the histogram and GMM components with decision boundaries.
 
@@ -439,8 +438,8 @@ class GMMThresholding(GaussianMixtureModelBase):
 
     def categorize_samples(
         self,
-        manual_thresholds: Optional[List[Union[float, int]]] = None,
-        ordered_labels: Optional[list] = None,
+        manual_thresholds: list[float | int] | None = None,
+        ordered_labels: list | None = None,
         duplicate_labels: bool = False,
     ) -> None:
         """Categorize samples based on GMM-derived or manual thresholds.
@@ -691,7 +690,7 @@ class GMMThresholding(GaussianMixtureModelBase):
         self.adata.obs[self.label_obs_save_str] = sample_labels
         self._internal_data.ordered_gmm_labels = ordered_labels
 
-    def return_thresholds(self) -> List[float]:
+    def return_thresholds(self) -> list[float]:
         """Return the decision boundary thresholds.
 
         Returns
@@ -713,13 +712,13 @@ class GMMThresholding(GaussianMixtureModelBase):
     def plot_strip_plot_histogram_with_decision_boundaries(
         self,
         cmap: plt.cm.ScalarMappable = mpl.colormaps["plasma"],
-        y_axis_limits: Optional[tuple] = None,
+        y_axis_limits: tuple | None = None,
         resolution: int = 1000,
         scatter_density: bool = True,
-        vmax: Optional[Union[int, float]] = None,
-        hist_kwargs: Optional[dict] = None,
-        strip_plot_kwargs: Optional[dict] = None,
-        title: Optional[str] = None,
+        vmax: float | None = None,
+        hist_kwargs: dict | None = None,
+        strip_plot_kwargs: dict | None = None,
+        title: str | None = None,
     ) -> Figure:
         """Generate a strip plot with a histogram and decision boundaries.
 
@@ -791,9 +790,9 @@ class GMMThresholding(GaussianMixtureModelBase):
 
     def plot_feature_distribution_exploratory(
         self,
-        hist_kwargs: Optional[Dict] = None,
-        ax: Optional[plt.Axes] = None,
-        x_axis_limits: Optional[tuple] = None,
+        hist_kwargs: dict | None = None,
+        ax: plt.Axes | None = None,
+        x_axis_limits: tuple | None = None,
     ) -> plt.Axes:
         """Plot histogram of the feature distribution for exploratory analysis.
 
@@ -849,10 +848,10 @@ class GMMThresholding(GaussianMixtureModelBase):
 
     def plot_feature_strip_plot_exploratory(
         self,
-        hist_kwargs: Optional[Dict] = None,
-        strip_plot_kwargs: Optional[Dict] = None,
+        hist_kwargs: dict | None = None,
+        strip_plot_kwargs: dict | None = None,
         scatter_density: bool = True,
-        x_axis_limits: Optional[tuple] = None,
+        x_axis_limits: tuple | None = None,
     ) -> tuple:
         """Plot strip plot + histogram for exploratory analysis.
 
@@ -915,7 +914,7 @@ class GMMThresholding(GaussianMixtureModelBase):
         curve: str = "convex",
         direction: str = "decreasing",
         return_bic_list: bool = False,
-    ) -> Union[int, tuple]:
+    ) -> int | tuple:
         """Determine the optimal number of GMM components for this feature.
 
         This is a convenience wrapper that automatically uses the instance's
@@ -974,8 +973,8 @@ class GMMThresholding(GaussianMixtureModelBase):
         component_range: int,
         curve: str = "convex",
         direction: str = "decreasing",
-        ax: Optional[plt.Axes] = None,
-        save_path: Optional[Union[str, Path]] = None,
+        ax: plt.Axes | None = None,
+        save_path: str | Path | None = None,
     ) -> None:
         """Plot the Bayesian Information Criterion (BIC) curve.
 

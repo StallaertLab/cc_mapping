@@ -12,26 +12,24 @@ Classes:
     GaussianMixtureModelBase: Base class providing shared utilities and plotting methods
 """
 
-from typing import Dict, List, Optional, Tuple, Union
 import warnings
 from pathlib import Path
 
 import anndata as ad
-from kneed import KneeLocator
-from matplotlib import axes
-from matplotlib.figure import Figure
 import matplotlib as mpl
-import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
 import matplotlib.patches as mpatches
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import scipy.stats as st
+from kneed import KneeLocator
+from matplotlib import axes, gridspec
+from matplotlib.figure import Figure
 from pydantic import BaseModel, Field, field_validator
 from sklearn.mixture import GaussianMixture
 
 
-def _validate_save_path(save_path: Optional[Union[str, Path]]) -> Optional[Path]:
+def _validate_save_path(save_path: str | Path | None) -> Path | None:
     """
     Validate that the directory of the save_path exists.
 
@@ -92,27 +90,27 @@ class _GaussianMixtureModelInfo(BaseModel):
         Condensed data probabilities after handling duplicates (optional).
     """
 
-    gmm_kwargs: Optional[Dict] = Field(
+    gmm_kwargs: dict | None = Field(
         default=None,
         description="Keyword arguments used for the Gaussian Mixture Model.",
     )
-    means: Optional[List[float]] = Field(
+    means: list[float] | None = Field(
         default=None, description="Means of the GMM components."
     )
-    covs: Optional[List[float]] = Field(
+    covs: list[float] | None = Field(
         default=None, description="Covariances of the GMM components."
     )
-    weights: Optional[List[float]] = Field(
+    weights: list[float] | None = Field(
         default=None, description="Weights of the GMM components."
     )
-    n_components: Optional[int] = Field(
+    n_components: int | None = Field(
         default=None, description="Number of GMM components."
     )
-    data_probs: Optional[List[List[float]]] = Field(
+    data_probs: list[list[float]] | None = Field(
         default=None,
         description="Probability of each data point belonging to each gmm component.",
     )
-    condensed_data_probs: Optional[List[List[float]]] = Field(
+    condensed_data_probs: list[list[float]] | None = Field(
         default=None,
         description="Condensed data probabilities after handling duplicates (optional).",
     )
@@ -148,7 +146,7 @@ class _DecisionBoundariesModel(BaseModel):
         List of decision boundary thresholds.
     """
 
-    thresholds: List[float] = Field(description="List of decision boundary thresholds.")
+    thresholds: list[float] = Field(description="List of decision boundary thresholds.")
 
 
 class _SingleThresholdingEventModel(BaseModel):
@@ -171,17 +169,17 @@ class _SingleThresholdingEventModel(BaseModel):
         Observation label in anndata object to store gmm phase labels.
     """
 
-    gmm_info: Optional[_GaussianMixtureModelInfo] = Field(
+    gmm_info: _GaussianMixtureModelInfo | None = Field(
         description="Gaussian Mixture Model information.",
         default=None,
     )
-    ordered_gmm_labels: Optional[List[str]] = Field(
+    ordered_gmm_labels: list[str] | None = Field(
         description="Ordered labels corresponding to the gmm components.", default=None
     )
-    decision_boundaries: Optional[_DecisionBoundariesModel] = Field(
+    decision_boundaries: _DecisionBoundariesModel | None = Field(
         default=None, description="Decision boundary information (optional)."
     )
-    condensed_labels: Optional[List[str]] = Field(
+    condensed_labels: list[str] | None = Field(
         default=None,
         description="Condensed labels after handling duplicates (optional).",
     )
@@ -360,9 +358,9 @@ class GaussianMixtureModelBase:
         adata: ad.AnnData,
         feature: str,
         component_range: int,
-        layer: Optional[str],
+        layer: str | None,
         gmm_kwargs: dict,
-    ) -> List[Union[int, float]]:
+    ) -> list[int | float]:
         """
         Run Bayesian Information Criterion (BIC) on the gene expression data.
 
@@ -407,13 +405,13 @@ class GaussianMixtureModelBase:
         adata: ad.AnnData,
         feature: str,
         component_range: int,
-        layer: Optional[str] = None,
-        gmm_kwargs: Optional[dict] = None,
+        layer: str | None = None,
+        gmm_kwargs: dict | None = None,
         metric: str = "bic",
         curve: str = "convex",
         direction: str = "decreasing",
         return_bic_list: bool = False,
-    ) -> Union[int, Tuple[int, List[Union[int, float]]]]:
+    ) -> int | tuple[int, list[int | float]]:
         """
         Determine the optimal number of components for the GMM.
 
@@ -481,12 +479,12 @@ class GaussianMixtureModelBase:
         adata: ad.AnnData,
         feature: str,
         component_range: int,
-        layer: Optional[str] = None,
-        gmm_kwargs: Optional[dict] = None,
+        layer: str | None = None,
+        gmm_kwargs: dict | None = None,
         curve: str = "convex",
         direction: str = "decreasing",
         ax: plt.Axes = None,
-        save_path: Optional[Union[str, Path]] = None,
+        save_path: str | Path | None = None,
     ) -> None:
         """
         Plot the BIC curve.
@@ -657,7 +655,7 @@ class GaussianMixtureModelBase:
         ax: axes.Axes,
         internal_data: _SingleThresholdingEventModel,
         cmap: plt.cm.ScalarMappable,
-        legend_kwargs: Optional[dict] = None,
+        legend_kwargs: dict | None = None,
     ) -> axes.Axes:
         """
         Plot legend showing category labels and colors.
@@ -702,10 +700,10 @@ class GaussianMixtureModelBase:
         self,
         adata: ad.AnnData,
         feature: str,
-        layer: Optional[str],
-        hist_kwargs: Optional[Dict] = None,
+        layer: str | None,
+        hist_kwargs: dict | None = None,
         ax: plt.Axes = None,
-        x_axis_limits: Optional[tuple] = None,
+        x_axis_limits: tuple | None = None,
     ) -> axes.Axes:
         """
         Base function for plotting GMM distributions.
@@ -933,16 +931,16 @@ class GaussianMixtureModelBase:
         self,
         adata: ad.AnnData,
         feature: str,
-        layer: Optional[str],
-        obs_label: Optional[str] = None,
-        ordered_labels: Optional[List[str]] = None,
+        layer: str | None,
+        obs_label: str | None = None,
+        ordered_labels: list[str] | None = None,
         scatter_density: bool = True,
-        y_axis_limits: Optional[Tuple[float, float]] = None,
-        hist_kwargs: Optional[Dict] = None,
-        strip_plot_kwargs: Optional[Dict] = None,
+        y_axis_limits: tuple[float, float] | None = None,
+        hist_kwargs: dict | None = None,
+        strip_plot_kwargs: dict | None = None,
         cmap: mpl.cm.ScalarMappable = mpl.colormaps["plasma"],
-        vmax: Optional[Union[int, float]] = None,
-    ) -> Tuple[Figure, axes.Axes, axes.Axes]:
+        vmax: float | None = None,
+    ) -> tuple[Figure, axes.Axes, axes.Axes]:
         """
         Base method for creating strip plot + histogram WITHOUT decision boundaries.
 
@@ -1161,18 +1159,18 @@ class GaussianMixtureModelBase:
         self,
         adata: ad.AnnData,
         feature: str,
-        layer: Optional[str],
+        layer: str | None,
         obs_label: str,
-        ordered_labels: List[str],
+        ordered_labels: list[str],
         internal_data: _SingleThresholdingEventModel,
         cmap: mpl.cm.ScalarMappable = mpl.colormaps["plasma"],
-        y_axis_limits: Optional[Tuple[float, float]] = None,
+        y_axis_limits: tuple[float, float] | None = None,
         resolution: int = 1000,
         scatter_density: bool = True,
-        vmax: Optional[Union[int, float]] = None,
-        hist_kwargs: Optional[Dict] = None,
-        strip_plot_kwargs: Optional[Dict] = None,
-        title: Optional[str] = None,
+        vmax: float | None = None,
+        hist_kwargs: dict | None = None,
+        strip_plot_kwargs: dict | None = None,
+        title: str | None = None,
     ) -> Figure:
         """
         Generate a 1D strip plot with histogram and decision boundaries.
@@ -1261,7 +1259,7 @@ class GaussianMixtureModelBase:
     def generate_thresholding_report(
         self,
         output_format: str = "text",
-    ) -> Union[str, pd.DataFrame]:
+    ) -> str | pd.DataFrame:
         """
         Generate a human-readable report of all thresholding operations.
 
