@@ -495,6 +495,7 @@ class RFMinMaxSelector(FeatureSelector):
         self,
         save_path: str | None = None,
         figsize: tuple[int, int] = (12, 6),
+        show: bool = True,
     ):
         """
         Plot accuracy vs number of features.
@@ -505,6 +506,9 @@ class RFMinMaxSelector(FeatureSelector):
             Path to save the figure.
         figsize : tuple, default=(12, 6)
             Figure size.
+        show : bool, default=True
+            Whether to display the figure with plt.show(). If False, the
+            figure is closed after it is saved.
             
         Returns
         -------
@@ -525,6 +529,7 @@ class RFMinMaxSelector(FeatureSelector):
             cutoff_method=self.cutoff_method,
             save_path=save_path,
             figsize=figsize,
+            show=show,
         )
     
     def get_params(self) -> dict:

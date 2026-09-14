@@ -9,6 +9,7 @@ from typing import List
 
 import anndata as ad
 import numpy as np
+from scipy import sparse
 
 
 @dataclass
@@ -111,10 +112,11 @@ def _get_feature_indices(
                 f"Features not found in adata.var_names: {missing}"
             )
         
-        # Get indices using dictionary lookup for efficiency
-        var_name_to_idx = {name: idx for idx, name in enumerate(var_names)}
-        indices = np.array([var_name_to_idx[name] for name in feature_set])
-        feature_names = feature_set
+        # Take the columns in adata.var_names order, not list order: the forest's
+        # feature subsampling depends on column order, so the selection would
+        # otherwise change with how the caller happened to order the names.
+        indices = np.where(np.isin(var_names, feature_set))[0]
+        feature_names = var_names[indices]
     
     return indices, feature_names
 
@@ -198,8 +200,10 @@ def prepare_feature_matrix(
     # Get feature indices and names
     feature_indices, feature_names = _get_feature_indices(adata, feature_set)
     
-    # Extract feature matrix and labels
-    X = adata.X[:, feature_indices].copy()
+    # Extract feature matrix and labels. A sparse X is densified so the NaN/inf
+    # checks and the forest see the same values as for a dense X.
+    X = adata.X[:, feature_indices]
+    X = X.toarray() if sparse.issparse(X) else X.copy()
     y = adata.obs[labels].values.copy()
     
     n_original = len(y)
@@ -324,7 +328,9 @@ def validate_data(
             "Use prepare_feature_matrix() with drop_inf=True, or handle infinite values manually."
         )
     
-    # Check for NaN in labels (only if y is numeric)
+    # Check for NaN in labels (only if y is numeric). Pandas Categorical labels
+    # have no numpy dtype, so look at them as a plain array.
+    y = np.asarray(y)
     if np.issubdtype(y.dtype, np.floating):
         if np.isnan(y).any():
             n_nan = np.isnan(y).sum()
