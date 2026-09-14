@@ -374,6 +374,21 @@ def test_verbose_true_reports_training_and_selection(informative_adata, capsys):
     assert f"Selected {selector.results.n_features_selected} features" in out
 
 
+@pytest.mark.filterwarnings("error::sklearn.exceptions.UndefinedMetricWarning")
+def test_verbose_false_does_not_warn_about_a_class_never_predicted():
+    """core only built the classification report when verbose, so it stayed
+    quiet when the forest never predicts a rare class."""
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(600, 2))
+    y = np.array(["common"] * 570 + ["rare"] * 30)
+
+    RFTopNSelector(
+        n_features=1,
+        rf_params={"n_estimators": 20, "min_samples_leaf": 50},
+        verbose=False,
+    ).fit(X, y, ["f0", "f1"])
+
+
 # ---------------------------------------------------------------------------
 # Deliberate differences from core
 # ---------------------------------------------------------------------------
