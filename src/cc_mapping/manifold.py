@@ -26,7 +26,9 @@ from tqdm import tqdm
 from .plot import (
     HyperparamGridBuilder,
     HyperparamGridConfig,
+    combine_figures_with_gridspec,
     get_legend,
+    to_scatter_colors,
 )
 
 np.seterr(all="ignore")
@@ -245,6 +247,7 @@ class PHATEVisualizer:
         phate_coords: np.ndarray,
         colors: np.ndarray | pd.Series,
         kwargs: Optional[dict] = None,
+        palette: Optional[list] = None,
     ) -> plt.Axes:
         """
         Plot PHATE embedding on given axes.
@@ -252,8 +255,14 @@ class PHATEVisualizer:
         Args:
             ax: Matplotlib axes to plot on.
             phate_coords: PHATE coordinates (n_cells, 2).
-            colors: Color values for each cell.
+            colors: Color values for each cell. Numeric values are colormapped
+                ("rainbow", 1st-99th percentile); values that are all literal
+                colors (e.g. an obs column following the ``*_colors`` convention)
+                are used as-is; any other categorical/string values get one color
+                per category (see :func:`cc_mapping.plot.to_scatter_colors`).
             kwargs: Additional kwargs for scatter plot.
+            palette: Colors for the categories when ``colors`` is categorical,
+                one per category (e.g. ``adata.uns["phase_colors"]``).
 
         Returns:
             Modified axes object.
@@ -264,17 +273,17 @@ class PHATEVisualizer:
             kwargs = kwargs.copy()
 
         # Handle continuous vs categorical colors
-        if not isinstance(colors, (pd.Categorical, pd.CategoricalDtype)):
-            if colors.dtype != "object":
-                vmin = np.percentile(colors, 1)
-                vmax = np.percentile(colors, 99)
-                kwargs.update(
-                    {
-                        "vmin": vmin,
-                        "vmax": vmax,
-                        "cmap": "rainbow",
-                    }
-                )
+        colors, is_continuous = to_scatter_colors(colors, palette)
+        if is_continuous:
+            vmin = np.percentile(colors, 1)
+            vmax = np.percentile(colors, 99)
+            kwargs.update(
+                {
+                    "vmin": vmin,
+                    "vmax": vmax,
+                    "cmap": "rainbow",
+                }
+            )
 
         ax.scatter(phate_coords[:, 0], phate_coords[:, 1], c=colors, **kwargs)
 
@@ -300,7 +309,12 @@ class PHATEVisualizer:
 
         Args:
             adata: AnnData object containing PHATE coordinates.
-            color_name: Name of column in adata.obs to use for colors.
+            color_name: Name of a column in adata.obs (or a var name) to color by.
+                A categorical column such as "phase" is colored with
+                ``adata.uns[f"{color_name}_colors"]`` when present (scanpy
+                convention), otherwise a tab10/tab20 palette; a column of literal
+                colors such as "phase_colors" is used as-is; numeric values are
+                colormapped.
             obsm_embedding: Key for PHATE coordinates in adata.obsm.
             ax: Matplotlib axes to plot on. If None, creates new figure.
             unit_size: Size of the figure if creating new one.
@@ -320,8 +334,9 @@ class PHATEVisualizer:
 
         phate_coords = adata.obsm[obsm_embedding]
         colors = adata.obs_vector(color_name)
+        palette = adata.uns.get(f"{color_name}_colors")
 
-        PHATEVisualizer.plot_embedding(ax, phate_coords, colors, kwargs)
+        PHATEVisualizer.plot_embedding(ax, phate_coords, colors, kwargs, palette=palette)
 
         if created_fig and return_fig:
             return fig, ax
@@ -337,7 +352,10 @@ class PHATEVisualizer:
 def plot_phate_hyperparam_cell(ax: plt.Axes, context: PHATEPlotContext) -> plt.Axes:
     """Plot a single cell in PHATE hyperparameter search grid."""
     colors = context.adata.obs_vector(context.color_name)
-    PHATEVisualizer.plot_embedding(ax, context.phate_coords, colors, context.kwargs)
+    palette = context.adata.uns.get(f"{context.color_name}_colors")
+    PHATEVisualizer.plot_embedding(
+        ax, context.phate_coords, colors, context.kwargs, palette=palette
+    )
     return ax
 
 
@@ -348,7 +366,7 @@ def perform_phate_hyperparameter_search(
     hyperparam_grid: PHATEHyperparamGrid,
     base_config: PHATEConfig,
     color_name: str,
-    final_grid_dims: tuple[int, int],
+    final_grid_dims: Optional[tuple[int, int]] = None,
     unit_size: int = 10,
     plot_kwargs: Optional[dict] = None,
     save_path: Optional[str] = None,
@@ -357,21 +375,29 @@ def perform_phate_hyperparameter_search(
     """
     Perform hyperparameter search for PHATE visualization.
 
+    One grid figure is built per value in ``hyperparam_grid.constant_param_values``.
+
     Args:
         adata: Annotated data object.
         feature_set: Name of the feature set.
         layer: Name of the layer.
         hyperparam_grid: Hyperparameter grid configuration.
         base_config: Base PHATE configuration.
-        color_name: Name of color column for visualization.
-        final_grid_dims: Dimensions (rows, cols) for final combined figure.
+        color_name: Name of color column for visualization (see
+            ``PHATEVisualizer.plot_from_adata`` for how colors are resolved).
+        final_grid_dims: Optional (rows, cols). When given, the per-constant-value
+            grids are combined into a single figure with this layout.
         unit_size: Size of each subplot unit.
         plot_kwargs: Additional kwargs for scatter plots.
-        save_path: Path to save figures.
-        show_legend: Whether to show legend.
+        save_path: Path to save figures. With ``final_grid_dims`` the combined
+            figure is saved to this path; otherwise each grid is saved as
+            ``<name>_<idx><ext>``.
+        show_legend: Whether to draw a category legend on each grid (categorical
+            ``color_name`` only).
 
     Returns:
-        List of generated figures (one per constant parameter value).
+        List of generated figures: one per constant parameter value, or a single
+        combined figure when ``final_grid_dims`` is given.
     """
     if save_path is not None:
         save_dir = os.path.dirname(save_path)
@@ -436,22 +462,37 @@ def perform_phate_hyperparameter_search(
             )
             figure_list.append(fig)
 
-        # Add legend if requested
+        # Add legend if requested, on the last (bottom-right) cell of every grid
         if color_name is not None and show_legend:
-            color_vector = adata.obs_vector(color_name)
-            if (
-                isinstance(color_vector, (pd.Categorical, pd.CategoricalDtype))
-                or color_vector.dtype == "object"
-            ):
+            _, is_continuous = to_scatter_colors(adata.obs_vector(color_name))
+            if not is_continuous:
                 patches, _ = get_legend(adata, color_name)
-                plt.legend(handles=patches, fontsize=unit_size)
+                for fig in figure_list:
+                    fig.axes[-1].legend(handles=patches, fontsize=unit_size)
+
+        # Combine the per-constant-value grids into one figure if requested
+        if final_grid_dims is not None:
+            combined_fig = combine_figures_with_gridspec(
+                figure_list, *final_grid_dims, unit_size=unit_size
+            )
+            for fig in figure_list:
+                plt.close(fig)
+            figure_list = [combined_fig]
 
         # Save if requested
         if save_path is not None:
-            for idx, fig in enumerate(figure_list):
-                path_base, path_ext = os.path.splitext(save_path)
-                save_file = f"{path_base}_{idx}{path_ext}"
-                fig.savefig(save_file, dpi=300, bbox_inches="tight")
+            if final_grid_dims is not None:
+                figure_list[0].savefig(save_path, dpi=300, bbox_inches="tight")
+            else:
+                for idx, fig in enumerate(figure_list):
+                    path_base, path_ext = os.path.splitext(save_path)
+                    save_file = f"{path_base}_{idx}{path_ext}"
+                    fig.savefig(save_file, dpi=300, bbox_inches="tight")
+
+        # The returned figures stay usable (savefig, notebook display) but are removed
+        # from pyplot, so a later plt.show() doesn't display them a second time
+        for fig in figure_list:
+            plt.close(fig)
 
         return figure_list
 

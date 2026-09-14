@@ -10,11 +10,14 @@ Key improvements:
 
 from __future__ import annotations
 
+import io
 import os
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
 import anndata as ad
+import matplotlib as mpl
+import matplotlib.colors as mcolors
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
@@ -70,8 +73,8 @@ class GridLabelRenderer:
 
     def __init__(self, fontsize: int = 35):
         self.fontsize = fontsize
-        self.row_cmap = plt.cm.get_cmap("tab20")
-        self.col_cmap = plt.cm.get_cmap("Dark2")
+        self.row_cmap = mpl.colormaps["tab20"]
+        self.col_cmap = mpl.colormaps["Dark2"]
 
     def add_column_labels(
         self,
@@ -340,7 +343,11 @@ class RowPartitionPlotContext:
 def plot_row_partition_cell(ax: plt.Axes, context: RowPartitionPlotContext) -> plt.Axes:
     """Plot a single cell in a row partition grid."""
     phate_df = context.adata.obsm[context.obs_embedding_key]
-    colors = context.adata.obs_vector(context.color_name)
+    # Resolve colors on the full dataset so every column maps a category to the same color
+    colors, is_continuous = to_scatter_colors(
+        context.adata.obs_vector(context.color_name),
+        context.adata.uns.get(f"{context.color_name}_colors"),
+    )
 
     # Plot background if requested
     if context.plot_background:
@@ -362,7 +369,7 @@ def plot_row_partition_cell(ax: plt.Axes, context: RowPartitionPlotContext) -> p
 
     # Handle continuous vs categorical colors
     kwargs = context.kwargs.copy()
-    if plot_colors.dtype != "object" and not isinstance(plot_colors, pd.Categorical):
+    if is_continuous:
         kwargs.setdefault("vmin", np.percentile(plot_colors, 1))
         kwargs.setdefault("vmax", np.percentile(plot_colors, 99))
         kwargs.setdefault("cmap", "rainbow")
@@ -398,7 +405,12 @@ def plot_row_partitions(
     Args:
         adata: The AnnData object containing the data.
         obs_search_term: The search term for selecting the observations.
-        colors: List or array of colors for the plot.
+        colors: Names of the obs columns / var names to color each row by. A
+            categorical column (e.g. "phase") is colored with
+            ``adata.uns[f"{name}_colors"]`` when present (scanpy convention),
+            otherwise a tab10/tab20 palette; a column of literal colors (the
+            ``*_colors`` convention, e.g. "phase_colors") is used as-is; numeric
+            values are colormapped.
         column_labels: List or array of column labels.
         obs_embedding_key: The key for the observation embedding.
         kwargs: Additional keyword arguments for the plotting function.
@@ -449,6 +461,108 @@ def plot_row_partitions(
 # ============================================================================
 
 
+NA_COLOR = "lightgrey"
+
+
+def _default_palette(n_colors: int) -> list:
+    """tab10 / tab20 for up to 10 / 20 categories, evenly sampled "turbo" beyond that."""
+    if n_colors <= 10:
+        return [mpl.colormaps["tab10"](i) for i in range(n_colors)]
+    if n_colors <= 20:
+        return [mpl.colormaps["tab20"](i) for i in range(n_colors)]
+    return [mpl.colormaps["turbo"](i / (n_colors - 1)) for i in range(n_colors)]
+
+
+def _is_literal_color(value) -> bool:
+    """True for strings matplotlib reads as a color, except bare numbers.
+
+    Matplotlib reads "0" or "0.5" as grayscale, but in obs columns those are
+    almost always cluster labels.
+    """
+    if not isinstance(value, str):
+        return False
+    try:
+        float(value)
+    except ValueError:
+        return mcolors.is_color_like(value)
+    return False
+
+
+def _is_color_column(values) -> bool:
+    """True when every non-missing value is a literal color (the ``*_colors`` convention)."""
+    present = [v for v in pd.unique(np.asarray(values, dtype=object)) if not pd.isna(v)]
+    return bool(present) and all(_is_literal_color(v) for v in present)
+
+
+def category_color_map(values, palette: Optional[list] = None) -> dict:
+    """
+    Map each category of ``values`` to a color.
+
+    Categories are taken in ``categories`` order when ``values`` is categorical,
+    otherwise in sorted order. ``palette`` (for example ``adata.uns["phase_colors"]``,
+    the scanpy convention) is used when it has exactly one color per category;
+    otherwise a tab10/tab20 palette is used.
+
+    Args:
+        values: Per-cell category labels.
+        palette: Optional list of colors, one per category.
+
+    Returns:
+        Dict mapping each category to a color.
+    """
+    if isinstance(getattr(values, "dtype", None), pd.CategoricalDtype):
+        categories = list(values.dtype.categories)
+    else:
+        present = pd.unique(np.asarray(values, dtype=object))
+        categories = sorted((v for v in present if not pd.isna(v)), key=str)
+
+    if palette is None or len(palette) != len(categories):
+        palette = _default_palette(len(categories))
+
+    return dict(zip(categories, palette))
+
+
+def to_scatter_colors(values, palette: Optional[list] = None) -> tuple[np.ndarray, bool]:
+    """
+    Convert per-cell values into something ``Axes.scatter(c=...)`` accepts.
+
+    - Numeric values are returned unchanged and flagged as continuous, so the
+      caller can apply a colormap.
+    - Values that are all literal colors (the ``*_colors`` obs convention, e.g.
+      ``"orchid"`` or ``"#ff0000"``) are used as-is.
+    - Any other categorical, string or boolean values get one color per category
+      from :func:`category_color_map`.
+
+    Missing values are drawn in light grey.
+
+    Args:
+        values: Per-cell values, e.g. ``adata.obs_vector(color_name)``.
+        palette: Optional list of colors, one per category, for categorical values.
+
+    Returns:
+        Tuple of (colors, is_continuous).
+    """
+    dtype = getattr(values, "dtype", None)
+    if dtype is None:
+        values = np.asarray(values)
+        dtype = values.dtype
+    if pd.api.types.is_numeric_dtype(dtype) and not pd.api.types.is_bool_dtype(dtype):
+        return np.asarray(values), True
+
+    labels = np.asarray(values, dtype=object)
+    missing = pd.isna(labels)
+    if _is_color_column(labels):
+        return np.where(missing, NA_COLOR, labels), False
+
+    lookup = {
+        label: mcolors.to_rgba(color)
+        for label, color in category_color_map(values, palette).items()
+    }
+    na_rgba = mcolors.to_rgba(NA_COLOR)
+    rgba = [na_rgba if is_na else lookup[label] for label, is_na in zip(labels, missing)]
+    return np.array(rgba), False
+
+
 def get_legend(
     adata: ad.AnnData,
     color_name: str,
@@ -457,15 +571,40 @@ def get_legend(
     """
     Get patches from adata.obs[color_name] for creating a legend.
 
+    ``color_name`` can name either
+
+    - a column of literal colors (the ``*_colors`` convention, e.g. ``"phase_colors"``);
+      the labels then come from ``label_name``, which defaults to ``color_name``
+      without the ``_colors`` suffix; or
+    - a categorical/string column (e.g. ``"phase"``); each category then gets the
+      color the plotting functions use for it (``adata.uns[f"{color_name}_colors"]``
+      when present, otherwise a tab10/tab20 palette) and ``label_name`` is ignored.
+
     Args:
         adata: AnnData object.
         color_name: Name of the anndata obs column to use for coloring.
-        label_name: The name of the label column.
+        label_name: The name of the label column (``*_colors`` columns only).
 
     Returns:
         A tuple containing a list of patches for the legend and the colors array.
+
+    Raises:
+        ValueError: If ``color_name`` holds continuous (numeric) values.
     """
-    colors = adata.obs_vector(color_name)
+    values = adata.obs_vector(color_name)
+    palette = adata.uns.get(f"{color_name}_colors")
+    colors, is_continuous = to_scatter_colors(values, palette)
+    if is_continuous:
+        raise ValueError(
+            f"Cannot build a legend for continuous values in '{color_name}'"
+        )
+
+    if not _is_color_column(values):
+        patch_list = [
+            mpatches.Patch(color=color, label=str(label))
+            for label, color in category_color_map(values, palette).items()
+        ]
+        return patch_list, colors
 
     if label_name is None:
         label_name = color_name.removesuffix("_colors")
@@ -483,6 +622,14 @@ def get_legend(
     return patch_list, colors
 
 
+def _render_figure(fig: plt.Figure, dpi: int) -> np.ndarray:
+    """Render ``fig`` to an RGBA image array."""
+    buffer = io.BytesIO()
+    fig.savefig(buffer, format="png", dpi=dpi, bbox_inches="tight")
+    buffer.seek(0)
+    return plt.imread(buffer)
+
+
 def combine_figures_with_gridspec(
     figures: list[plt.Figure],
     grid_rows: int,
@@ -491,11 +638,16 @@ def combine_figures_with_gridspec(
     title: Optional[str] = None,
     title_kwargs: Optional[dict] = None,
     save_path: Optional[str] = None,
+    raster_dpi: int = 150,
 ) -> plt.Figure:
     """
     Combine multiple figures into a single figure using GridSpec.
 
-    This is a cleaner replacement for the array manipulation approach.
+    Each source figure is rendered to an image and drawn into its own grid cell,
+    so figures with any content (several axes, labels, legends, colorbars) can be
+    combined, and the source figures are left untouched. Matplotlib artists cannot
+    be moved between figures, which is why the figures are rasterized rather than
+    copied.
 
     Args:
         figures: List of matplotlib figures to combine.
@@ -505,6 +657,7 @@ def combine_figures_with_gridspec(
         title: Title for the combined figure.
         title_kwargs: Keyword arguments for the title.
         save_path: Path to save the combined figure.
+        raster_dpi: Resolution used to render each source figure.
 
     Returns:
         Combined figure.
@@ -516,35 +669,10 @@ def combine_figures_with_gridspec(
 
     gs = GridSpec(grid_rows, grid_cols, figure=combined_fig)
 
-    for idx, fig in enumerate(figures):
-        if idx >= grid_rows * grid_cols:
-            break
-
-        row = idx // grid_cols
-        col = idx % grid_cols
-
-        # Create subplot in combined figure
-        ax_combined = combined_fig.add_subplot(gs[row, col])
-
-        # Copy content from source figure
-        # Get the first axes from the source figure
-        if fig.axes:
-            source_ax = fig.axes[0]
-
-            # Copy images, collections, lines, etc.
-            for collection in source_ax.collections:
-                ax_combined.add_collection(collection)
-
-            for line in source_ax.lines:
-                ax_combined.add_line(line)
-
-            for patch in source_ax.patches:
-                ax_combined.add_patch(patch)
-
-            # Copy limits and properties
-            ax_combined.set_xlim(source_ax.get_xlim())
-            ax_combined.set_ylim(source_ax.get_ylim())
-            ax_combined.axis("off")
+    for idx, fig in enumerate(figures[: grid_rows * grid_cols]):
+        ax_combined = combined_fig.add_subplot(gs[idx // grid_cols, idx % grid_cols])
+        ax_combined.imshow(_render_figure(fig, dpi=raster_dpi))
+        ax_combined.axis("off")
 
     if title:
         if title_kwargs is None:
