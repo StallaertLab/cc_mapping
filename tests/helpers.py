@@ -22,7 +22,6 @@ improve the readability and maintainability of the test suite, and centralize
 common setup and verification logic.
 """
 from typing import Any, Dict, Optional, Tuple, List, Union, Type
-from collections import OrderedDict
 
 import anndata as ad
 import numpy as np
@@ -170,7 +169,8 @@ def assert_adata_copy_and_uns(
     - `gmm_obj.adata` is not the same object as `original_adata`.
     - `gmm_obj.adata`'s `.X`, `.obs`, `.var` contents match `original_adata`.
     - `gmm_obj.adata.uns` contains the key 'gmm_thresholding_events'.
-    - `gmm_obj.adata.uns['gmm_thresholding_events']` is an `OrderedDict`.
+    - `gmm_obj.adata.uns['gmm_thresholding_events']` is a plain `dict`
+      (anndata cannot write an `OrderedDict` to .h5ad).
     """
     assert gmm_obj.adata is not original_adata, \
         "Object's adata should be a copy, not the same object."
@@ -184,8 +184,8 @@ def assert_adata_copy_and_uns(
     # Check .uns key specifically
     assert "gmm_thresholding_events" in gmm_obj.adata.uns, \
         ".uns['gmm_thresholding_events'] key missing in object's adata."
-    assert isinstance(gmm_obj.adata.uns["gmm_thresholding_events"], OrderedDict), \
-        ".uns['gmm_thresholding_events'] has wrong type (should be OrderedDict)."
+    assert type(gmm_obj.adata.uns["gmm_thresholding_events"]) is dict, \
+        ".uns['gmm_thresholding_events'] has wrong type (should be a plain dict)."
 
 
 def assert_direct_attributes_initialized(
@@ -290,3 +290,67 @@ def assert_dependent_models_initialized(gmm_obj: GMMThresholding):
         "Attribute 'label_obs_save_str' not correctly propagated to 'internal_data'."
     assert gmm_obj._internal_data.gmm_info is gmm_obj._gmm_info, \
         "'gmm_info' object identity not correctly propagated to 'internal_data'."
+
+
+def probs_from_winners(
+    winners, n_components: int, winner_prob: float = 0.7
+) -> np.ndarray:
+    """
+    Builds a probability matrix (samples x components) from each sample's most likely component.
+
+    The winning component of each sample gets `winner_prob`; the other components
+    share the rest equally.
+    """
+    winners = np.asarray(winners)
+    other_prob = (1 - winner_prob) / (n_components - 1)
+    probs = np.full((len(winners), n_components), other_prob)
+    probs[np.arange(len(winners)), winners] = winner_prob
+    return probs
+
+
+class FakeGaussianMixture:
+    """
+    Stand-in for sklearn's GaussianMixture that returns fixed probabilities.
+
+    `predict_proba` looks every sample up by its feature value, so it works for
+    any subset or ordering of `feature_values` (which must be sorted and unique).
+    Means must be ascending, so the thresholding classes' sort-by-mean step keeps
+    the component order of `probs`.
+    """
+
+    def __init__(self, feature_values, probs, means=None, variance: float = 1.0):
+        self._feature_values = np.asarray(feature_values, dtype=float)
+        self._probs = np.asarray(probs, dtype=float)
+        n_components = self._probs.shape[1]
+        if means is None:
+            means = np.arange(n_components, dtype=float)
+        self.means_ = np.asarray(means, dtype=float).reshape(-1, 1)
+        self.covariances_ = np.full((n_components, 1, 1), variance)
+        self.weights_ = np.full(n_components, 1.0 / n_components)
+
+    def fit(self, X):
+        return self
+
+    def predict_proba(self, X):
+        values = np.asarray(X, dtype=float).ravel()
+        rows = np.searchsorted(self._feature_values, values)
+        return self._probs[rows]
+
+
+def use_fake_gaussian_mixture(
+    monkeypatch, feature_values, probs, means=None, variance: float = 1.0
+):
+    """
+    Makes GMMThresholding and SequentialGMM fit a `FakeGaussianMixture` instead of sklearn's model.
+    """
+    from cc_mapping.thresholding import sequential, single
+
+    def make_fake(n_components, **gmm_kwargs):
+        fake = FakeGaussianMixture(
+            feature_values, probs, means=means, variance=variance
+        )
+        assert n_components == fake.weights_.size, "n_components must match probs"
+        return fake
+
+    monkeypatch.setattr(single, "GaussianMixture", make_fake)
+    monkeypatch.setattr(sequential, "GaussianMixture", make_fake)

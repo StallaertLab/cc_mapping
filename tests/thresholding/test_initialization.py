@@ -48,7 +48,7 @@ def test_init_success_defaults(sample_adata):
     assert_dependent_models_initialized(gmm_thresholding)
 
     assert len(gmm_thresholding.adata.uns['gmm_thresholding_events']) == 0, \
-        "The `gmm_thresholding_events` should be initialized as an empty OrderedDict" 
+        "The `gmm_thresholding_events` should be initialized as an empty dict"
 
 
 def test_init_success_custom_kwargs(sample_adata):
@@ -174,12 +174,27 @@ def test_init_non_numeric_x_adata(sample_adata):
             label_obs_save_str='labels'
         )
 
+@pytest.mark.parametrize("container", [dict, OrderedDict])
+def test_init_existing_uns_key_kept_as_plain_dict(sample_adata, container):
+    """Tests existing events are kept in a plain dict, which anndata can write to .h5ad."""
+    existing_adata = create_modified_adata(sample_adata, add_uns={'gmm_thresholding_events': container(previous_run={'feature_name': 'gene2'})})
+
+    gmm_thresholding = GMMThresholding(
+        adata=existing_adata,
+        feature='gene1',
+        label_obs_save_str='labels'
+    )
+
+    events = gmm_thresholding.adata.uns['gmm_thresholding_events']
+    assert type(events) is dict, "The thresholding events should be stored in a plain dict."
+    assert events == {'previous_run': {'feature_name': 'gene2'}}, "The existing events should be preserved."
+
 def test_init_existing_uns_key_wrong_type(sample_adata):
-    """Tests TypeError when the uns key exists but is not an OrderedDict."""
-    wrong_uns_type_adata = create_modified_adata(sample_adata,add_uns={'gmm_thresholding_events': {'not_dict':'values'}}) # Ensure the original sample_adata is unchanged
+    """Tests TypeError when the uns key exists but is not a dict."""
+    wrong_uns_type_adata = create_modified_adata(sample_adata,add_uns={'gmm_thresholding_events': ['not', 'a', 'dict']}) # Ensure the original sample_adata is unchanged
 
     # Match the updated error message in __init__
-    with pytest.raises(TypeError, match="The 'gmm_thresholding_events' key in the AnnData object's `.uns` attribute must be an OrderedDict."):
+    with pytest.raises(TypeError, match="The 'gmm_thresholding_events' key in the AnnData object's `.uns` attribute must be a dict."):
         GMMThresholding(
             adata=wrong_uns_type_adata,
             feature='gene1',

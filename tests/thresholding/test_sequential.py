@@ -96,7 +96,7 @@ class TestInitialization:
         assert seq_gmm.random_state == 42
         assert seq_gmm.gmm_kwargs == {}
         assert 'sequential_gmm_thresholding_events' in seq_gmm.adata.uns
-        assert isinstance(seq_gmm.adata.uns['sequential_gmm_thresholding_events'], OrderedDict)
+        assert type(seq_gmm.adata.uns['sequential_gmm_thresholding_events']) is dict
     
     def test_init_success_custom_key(self, basic_adata):
         """Test initialization with custom .uns key."""
@@ -107,7 +107,7 @@ class TestInitialization:
         
         assert seq_gmm.thresholding_events_key == 'my_custom_key'
         assert 'my_custom_key' in seq_gmm.adata.uns
-        assert isinstance(seq_gmm.adata.uns['my_custom_key'], OrderedDict)
+        assert type(seq_gmm.adata.uns['my_custom_key']) is dict
     
     def test_init_success_custom_gmm_kwargs(self, basic_adata):
         """Test initialization with custom GMM kwargs."""
@@ -148,11 +148,24 @@ class TestInitialization:
                 thresholding_events_key=""
             )
     
+    @pytest.mark.parametrize("container", [dict, OrderedDict])
+    def test_init_existing_events_kept_as_plain_dict(self, basic_adata, container):
+        """Test existing events are kept in a plain dict, which anndata can write to .h5ad."""
+        basic_adata.uns['sequential_gmm_thresholding_events'] = container(
+            previous_run={'feature_name': 'DNA'}
+        )
+
+        seq_gmm = SequentialGMM(adata=basic_adata)
+
+        events = seq_gmm.adata.uns['sequential_gmm_thresholding_events']
+        assert type(events) is dict
+        assert events == {'previous_run': {'feature_name': 'DNA'}}
+
     def test_init_error_invalid_uns_key_type(self, basic_adata):
-        """Test initialization fails when existing .uns key is not OrderedDict."""
-        basic_adata.uns['sequential_gmm_thresholding_events'] = {}  # dict, not OrderedDict
+        """Test initialization fails when existing .uns key is not a dict."""
+        basic_adata.uns['sequential_gmm_thresholding_events'] = ['not', 'a', 'dict']
         
-        with pytest.raises(TypeError, match="must be an OrderedDict"):
+        with pytest.raises(TypeError, match="must be a dict"):
             SequentialGMM(adata=basic_adata)
     
     def test_init_error_invalid_gmm_kwargs_type(self, basic_adata):

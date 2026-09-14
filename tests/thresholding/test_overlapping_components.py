@@ -37,10 +37,10 @@ def test_overlapping_components_with_collapsing(overlapping_components_adata):
 
     This test uses data where GMM components overlap significantly,
     which can cause the condensed probabilities to prefer different
-    classes at different points (flip-flopping). The code should handle
-    this by either:
-    1. Warning the user and clamping bin indices, or
-    2. Ensuring thresholds match expected count for unique labels
+    classes at different points (flip-flopping). The code handles this by
+    keeping only the steps up to a higher label, so there are never more
+    thresholds than labels - 1, and by warning when samples are reassigned
+    to the label of their interval or a label receives no samples.
 
     Note: This test may or may not trigger a warning depending on the random
     seed and how the GMM fits. The important part is it doesn't crash.

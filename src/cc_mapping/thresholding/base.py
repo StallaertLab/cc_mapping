@@ -24,10 +24,11 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import matplotlib.patches as mpatches
+import mpl_scatter_density  # noqa: F401  -- imported for its side effect: registers the "scatter_density" projection
 import numpy as np
 import pandas as pd
 import scipy.stats as st
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from sklearn.mixture import GaussianMixture
 
 
@@ -142,13 +143,45 @@ class _DecisionBoundariesModel(BaseModel):
     """
     Model to store decision boundary information.
 
+    The thresholds split the feature into intervals: interval ``i`` lies between
+    ``thresholds[i - 1]`` and ``thresholds[i]`` and gets label index
+    ``interval_components[i]``.
+
     Attributes
     ----------
     thresholds : list of float
-        List of decision boundary thresholds.
+        List of decision boundary thresholds, in ascending order.
+    interval_components : list of int
+        Label index (into the possibly condensed labels) of each interval.
+        Defaults to one label per interval, in order (as for manual thresholds).
+    empty_labels : list of str
+        Labels that no sample was assigned to.
+    n_reassigned_samples : int
+        Number of samples whose most likely GMM component differs from the
+        label of the interval they fall in.
     """
 
     thresholds: List[float] = Field(description="List of decision boundary thresholds.")
+    interval_components: Optional[List[int]] = Field(
+        default=None,
+        description="Label index of each interval between thresholds "
+        "(defaults to one label per interval, in order).",
+    )
+    empty_labels: List[str] = Field(
+        default_factory=list, description="Labels that no sample was assigned to."
+    )
+    n_reassigned_samples: int = Field(
+        default=0,
+        description="Number of samples whose most likely GMM component differs "
+        "from the label of the interval they fall in.",
+    )
+
+    @model_validator(mode="after")
+    def _default_to_one_label_per_interval(self):
+        """Give each interval its own label, in order, when no mapping is given."""
+        if self.interval_components is None:
+            self.interval_components = list(range(len(self.thresholds) + 1))
+        return self
 
 
 class _SingleThresholdingEventModel(BaseModel):
@@ -254,14 +287,22 @@ class GaussianMixtureModelBase:
         self,
         feature_values: np.ndarray,
         data_probs: np.ndarray,
-        ordered_labels: list[str] | None = None,
+        ordered_labels: List[str],
+        feature_name: str,
     ) -> _DecisionBoundariesModel:
         """
         Calculate decision boundaries from any probability array.
 
         This method works with both original GMM probabilities and condensed
-        probabilities from collapsed labels. It finds class transitions and
-        calculates threshold midpoints.
+        probabilities from collapsed labels. Samples are sorted by the feature
+        and each one's most likely component is taken. Walking along the
+        feature, a step up to a component above the current interval's
+        component starts a new interval, with its threshold at the midpoint of
+        the step; all other steps are ignored. The first interval gets the
+        component the first step up comes from (the most common component if
+        there is no step up). Each label therefore covers one contiguous range
+        of the feature, and there are never more than ``len(ordered_labels) - 1``
+        thresholds.
 
         Parameters
         ----------
@@ -270,90 +311,117 @@ class GaussianMixtureModelBase:
         data_probs : np.ndarray
             Probability matrix (samples x components) from GMM or
             condensed from duplicate label collapsing.
-        ordered_labels : list of str or None, optional
-            List of label names corresponding to components.
-            If provided, used to make warning messages more interpretable.
+        ordered_labels : list of str
+            Label names corresponding to the columns of data_probs.
+        feature_name : str
+            Name of the feature, used in warning messages.
 
         Returns
         -------
         _DecisionBoundariesModel
-            Contains calculated thresholds.
+            Thresholds, the label index of each interval, the labels that no
+            sample was assigned to, and the number of reassigned samples.
 
         Warns
         -----
         UserWarning
-            If backward transitions are detected (likely due to outliers
-            or overlapping components).
+            If some labels are assigned no samples, or if some samples' most
+            likely component differs from the label of the interval they fall in.
         """
-        # Sort feature values and get sort indices
-        sort_index = np.argsort(feature_values)
+        feature_values = np.asarray(feature_values).ravel()
+        sort_index = np.argsort(feature_values, kind="stable")
         sorted_feature_values = feature_values[sort_index]
-        sorted_probabilities = data_probs[sort_index]
+        most_likely = np.argmax(np.asarray(data_probs)[sort_index], axis=1)
+        n_labels = len(ordered_labels)
 
-        # Determine the predicted class for each data point
-        predicted_classes = np.argmax(sorted_probabilities, axis=1)
+        # Keep a step up only if it goes above the current interval's component
+        step_ups = np.flatnonzero(np.diff(most_likely) > 0)
+        if step_ups.size:
+            current = most_likely[step_ups[0]]
+        else:
+            current = np.bincount(most_likely, minlength=n_labels).argmax()
+        thresholds = []
+        interval_components = [int(current)]
+        for idx in step_ups:
+            if most_likely[idx + 1] > current:
+                current = most_likely[idx + 1]
+                # Threshold at the midpoint of the step
+                thresholds.append(float(sorted_feature_values[idx : idx + 2].mean()))
+                interval_components.append(int(current))
 
-        # Calculate the difference between consecutive predicted classes
-        class_differences = np.diff(predicted_classes)
+        assigned = self._assign_label_indices(
+            sorted_feature_values, thresholds, interval_components
+        )
+        n_assigned = np.bincount(assigned, minlength=n_labels)
+        empty_labels = [ordered_labels[i] for i in np.flatnonzero(n_assigned == 0)]
 
-        # Find indices where class changes occur (any non-zero change)
-        change_indices = np.where(class_differences != 0)[0]
-
-        # Filter out backward transitions (non-increasing component indices)
-        # This handles outliers that cause the argmax to "jump back" to earlier components
-        forward_transitions = []
-        backward_transitions = []
-
-        for idx in change_indices:
-            from_class = predicted_classes[idx]
-            to_class = predicted_classes[idx + 1]
-
-            if to_class > from_class:
-                # Forward transition - keep it
-                forward_transitions.append(idx)
-            else:
-                # Backward transition - record but don't use
-                transition_location = sorted_feature_values[idx]
-                backward_transitions.append((from_class, to_class, transition_location))
-
-        # Warn user if backward transitions were detected
-        if backward_transitions:
-            n_components = data_probs.shape[1]
-            expected_thresholds = n_components - 1
-
-            # Build detailed transition descriptions with label names if available
-            transition_details = []
-            for fr, to, loc in backward_transitions:
-                if ordered_labels is not None:
-                    from_label = ordered_labels[fr]
-                    to_label = ordered_labels[to]
-                    transition_details.append(
-                        f"  • {from_label} (component {fr}) → {to_label} (component {to}) at x ≈ {loc:.3f}"
-                    )
-                else:
-                    transition_details.append(
-                        f"  • component {fr} → {to} at x ≈ {loc:.3f}"
-                    )
-
-            transition_str = "\n".join(transition_details)
-
+        if empty_labels:
+            n_most_likely = np.bincount(most_likely, minlength=n_labels)
+            never_most_likely = "never the most likely component for any sample"
+            if n_most_likely[n_assigned == 0].any():
+                never_most_likely += (
+                    ", or only for samples that fall in another label's range"
+                )
             warnings.warn(
-                f"\nDetected {len(backward_transitions)} backward transition(s) in sorted data:\n"
-                f"{transition_str}\n"
-                f"This suggests overlapping components or outliers.\n"
-                f"These transitions are being ignored, keeping only {len(forward_transitions)} "
-                f"forward transitions (expected {expected_thresholds}).\n"
-                f"Review your plots and .uns metadata to verify the boundaries are appropriate.",
+                f"No samples were assigned label(s) {empty_labels} for feature "
+                f"'{feature_name}': the GMM component(s) for these label(s) are "
+                f"{never_most_likely}, because the GMM components are overlapping. "
+                f"Consider fitting fewer GMM components or using a different feature.",
                 UserWarning,
             )
 
-        # Calculate midpoints at forward class transitions
+        reassigned = assigned != most_likely
+        n_reassigned = int(reassigned.sum())
+        if n_reassigned:
+            reassigned_values = sorted_feature_values[reassigned]
+            warnings.warn(
+                f"{n_reassigned} of {len(most_likely)} samples "
+                f"({100 * n_reassigned / len(most_likely):.3g}%) with '{feature_name}' "
+                f"between {reassigned_values.min():.4g} and {reassigned_values.max():.4g} "
+                f"have a most likely GMM component that differs from the label of the "
+                f"interval they fall in, because the GMM components are overlapping. "
+                f"They were reassigned to the label of that interval, so each label "
+                f"covers one contiguous range of '{feature_name}'.",
+                UserWarning,
+            )
+
         return _DecisionBoundariesModel(
-            thresholds=[
-                (sorted_feature_values[i] + sorted_feature_values[i + 1]) / 2
-                for i in forward_transitions
-            ]
+            thresholds=thresholds,
+            interval_components=interval_components,
+            empty_labels=empty_labels,
+            n_reassigned_samples=n_reassigned,
         )
+
+    def _assign_label_indices(
+        self,
+        feature_values: np.ndarray,
+        thresholds: List[float],
+        interval_components: List[int],
+    ) -> np.ndarray:
+        """
+        Map feature values to label indices through thresholds and interval components.
+
+        Interval ``i`` lies between ``thresholds[i - 1]`` and ``thresholds[i]``
+        and gets label index ``interval_components[i]``. Labeling samples and
+        colouring plots both go through this method, so plot colours always
+        match the assigned labels.
+
+        Parameters
+        ----------
+        feature_values : np.ndarray
+            Feature values to map.
+        thresholds : list of float
+            Decision boundary thresholds, in ascending order.
+        interval_components : list of int
+            Label index of each interval (one more entry than thresholds).
+
+        Returns
+        -------
+        np.ndarray
+            Label index for each feature value.
+        """
+        interval_indices = np.digitize(np.asarray(feature_values), thresholds)
+        return np.asarray(interval_components, dtype=int)[interval_indices]
 
     def _calculate_bic_for_component_range(
         self,
@@ -604,7 +672,8 @@ class GaussianMixtureModelBase:
                 "Decision boundaries have not been calculated. Please call calculate_decision_boundaries() first."
             )
 
-        threshold_list = internal_data.decision_boundaries.thresholds
+        thresholds = internal_data.decision_boundaries.thresholds
+        interval_components = internal_data.decision_boundaries.interval_components
 
         means: list = self._ensure_list(internal_data.gmm_info.means)
         covs: list = self._ensure_list(internal_data.gmm_info.covs)
@@ -619,7 +688,7 @@ class GaussianMixtureModelBase:
         elif ordered_labels is not None:
             num_final_categories = len(set(ordered_labels))
         else:
-            num_final_categories = len(threshold_list) + 1
+            num_final_categories = max(interval_components) + 1
 
         # Use final category colors for background and mean lines
         category_colors = cmap(np.linspace(0, 1, num_final_categories))
@@ -635,18 +704,19 @@ class GaussianMixtureModelBase:
             x_axis = np.linspace(x_min, x_max, resolution)
             y_axis = st.norm.pdf(x_axis, loc=g_mean, scale=std) * g_weight
 
-            # Color the GMM curve segments by which category they fall into
-            bin_indices = np.digitize(x_axis, threshold_list)
-            bin_indices = np.clip(bin_indices, 0, num_final_categories - 1)
-            x_colors = category_colors[bin_indices]
+            # Color the GMM curve by the label of the interval each point falls in
+            x_colors = category_colors[
+                self._assign_label_indices(x_axis, thresholds, interval_components)
+            ]
 
             ax.scatter(x_axis, y_axis, lw=1, c=x_colors, zorder=3, s=1)
 
-            # Color the component mean line by spatial position (which region it falls in)
-            # This ensures mean lines match the background shaded regions
-            mean_bin_idx = np.digitize([g_mean], threshold_list)[0]
-            mean_bin_idx = np.clip(mean_bin_idx, 0, num_final_categories - 1)
-            mean_line_color = category_colors[mean_bin_idx]
+            # Color the component mean line by the label of the interval it falls in,
+            # so mean lines match the background shaded regions
+            mean_label_idx = self._assign_label_indices(
+                [g_mean], thresholds, interval_components
+            )[0]
+            mean_line_color = category_colors[mean_label_idx]
 
             ax.axvline(g_mean, c=mean_line_color, lw=2, ls="--", zorder=4)
 
@@ -808,6 +878,7 @@ class GaussianMixtureModelBase:
             )
 
         thresholds = internal_data.decision_boundaries.thresholds
+        interval_components = internal_data.decision_boundaries.interval_components
 
         # Determine number of final categories based on unique labels
         if internal_data.condensed_labels is not None:
@@ -815,7 +886,7 @@ class GaussianMixtureModelBase:
         elif internal_data.ordered_gmm_labels is not None:
             num_final_categories = len(set(internal_data.ordered_gmm_labels))
         else:
-            num_final_categories = len(thresholds) + 1
+            num_final_categories = max(interval_components) + 1
 
         component_colors = cmap(np.linspace(0, 1, num_final_categories))
 
@@ -823,13 +894,11 @@ class GaussianMixtureModelBase:
         _, y_max = ax.get_ylim()
         x_axis = np.linspace(x_min, x_max, resolution)
 
-        bin_indices = np.digitize(x_axis, thresholds)
-
-        # Clamp bin indices to valid color range [0, num_final_categories-1]
-        # This handles cases where we have more thresholds than final categories
-        bin_indices = np.clip(bin_indices, 0, num_final_categories - 1)
-
-        x_axis_colors_rgba = np.array(component_colors)[bin_indices]
+        # Shade each interval in the colour of its label
+        label_indices = self._assign_label_indices(
+            x_axis, thresholds, interval_components
+        )
+        x_axis_colors_rgba = np.array(component_colors)[label_indices]
         rgba_decision_boundary_grid = np.repeat(
             x_axis_colors_rgba[np.newaxis, :, :], 2, axis=0
         )
@@ -842,11 +911,11 @@ class GaussianMixtureModelBase:
             alpha=0.2,
         )
 
+        # Colour each threshold line as the blend of the labels on either side
         for idx, threshold in enumerate(thresholds):
-            # Clamp idx+1 to avoid index out of bounds when we have more thresholds than colors
-            color_idx_right = min(idx + 1, num_final_categories - 1)
             axvline_color = (
-                component_colors[idx] + component_colors[color_idx_right]
+                component_colors[interval_components[idx]]
+                + component_colors[interval_components[idx + 1]]
             ) / 2
             ax.axvline(threshold, color=axvline_color, zorder=5)
 
@@ -879,6 +948,7 @@ class GaussianMixtureModelBase:
             Modified axes object with horizontal decision boundaries plotted.
         """
         thresholds = internal_data.decision_boundaries.thresholds
+        interval_components = internal_data.decision_boundaries.interval_components
 
         # Determine number of final categories based on unique labels
         if internal_data.condensed_labels is not None:
@@ -886,7 +956,7 @@ class GaussianMixtureModelBase:
         elif internal_data.ordered_gmm_labels is not None:
             num_final_categories = len(set(internal_data.ordered_gmm_labels))
         else:
-            num_final_categories = len(thresholds) + 1
+            num_final_categories = max(interval_components) + 1
 
         component_colors = cmap(np.linspace(0, 1, num_final_categories))
         thresholds = sorted(thresholds)  # Ensure sorted
@@ -898,15 +968,13 @@ class GaussianMixtureModelBase:
         # Create a grid for the Y-axis
         y_axis_grid = np.linspace(y_min, y_max, resolution)
 
-        # Digitize based on Y-thresholds
-        bin_indices = np.digitize(y_axis_grid, thresholds)
-
-        # Clamp bin indices to valid color range [0, num_final_categories-1]
-        # This handles cases where we have more thresholds than final categories
-        bin_indices = np.clip(bin_indices, 0, num_final_categories - 1)
+        # Shade each interval in the colour of its label
+        label_indices = self._assign_label_indices(
+            y_axis_grid, thresholds, interval_components
+        )
 
         # Get colors for the Y-axis grid
-        y_axis_colors_rgba = np.array(component_colors)[bin_indices]
+        y_axis_colors_rgba = np.array(component_colors)[label_indices]
 
         color_grid = np.repeat(y_axis_colors_rgba[:, np.newaxis, :], 2, axis=1)
 
@@ -918,12 +986,11 @@ class GaussianMixtureModelBase:
             alpha=0.2,
         )
 
-        # Plot horizontal lines at thresholds
+        # Plot horizontal lines at thresholds, coloured as the blend of the labels on either side
         for idx, threshold in enumerate(thresholds):
-            # Clamp idx+1 to avoid index out of bounds when we have more thresholds than colors
-            color_idx_right = min(idx + 1, num_final_categories - 1)
             axhline_color = (
-                component_colors[idx] + component_colors[color_idx_right]
+                component_colors[interval_components[idx]]
+                + component_colors[interval_components[idx + 1]]
             ) / 2
             ax.axhline(threshold, color=axhline_color, zorder=5)
 

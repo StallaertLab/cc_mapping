@@ -9,7 +9,6 @@ Classes:
     SequentialGMM: Sequential refinement class
 """
 
-from collections import OrderedDict
 from typing import Dict, List, Optional, Tuple, Union
 from pathlib import Path
 import warnings
@@ -129,7 +128,7 @@ class SequentialGMM(GaussianMixtureModelBase):
         ValueError
             If `thresholding_events_key` is an empty string.
         TypeError
-            If `adata.uns[thresholding_events_key]` exists but is not an OrderedDict.
+            If `adata.uns[thresholding_events_key]` exists but is not a dict.
         TypeError
             If `gmm_kwargs` is not a dictionary.
         """
@@ -149,10 +148,10 @@ class SequentialGMM(GaussianMixtureModelBase):
 
         # Create or validate .uns key
         if thresholding_events_key not in adata.uns:
-            adata.uns[thresholding_events_key] = OrderedDict()
-        elif not isinstance(adata.uns[thresholding_events_key], OrderedDict):
+            adata.uns[thresholding_events_key] = {}
+        elif not isinstance(adata.uns[thresholding_events_key], dict):
             raise TypeError(
-                f"The '{thresholding_events_key}' key in the AnnData object's `.uns` attribute must be an OrderedDict."
+                f"The '{thresholding_events_key}' key in the AnnData object's `.uns` attribute must be a dict."
             )
 
         # Validate gmm_kwargs
@@ -163,6 +162,10 @@ class SequentialGMM(GaussianMixtureModelBase):
 
         # Store attributes
         self.adata = adata.copy()
+        # anndata cannot write an OrderedDict to .h5ad, so keep the events in a plain dict
+        self.adata.uns[thresholding_events_key] = dict(
+            self.adata.uns[thresholding_events_key]
+        )
         self.thresholding_events_key = thresholding_events_key
         self.gmm_kwargs = gmm_kwargs
         self.random_state = random_state
@@ -418,21 +421,36 @@ class SequentialGMM(GaussianMixtureModelBase):
             **gmm_kwargs
         )
         gmm.fit(subset_data.reshape(-1, 1))
-        
+
+        # Sort GMM components by mean (low -> high) so column index matches the
+        # caller's ordered_labels convention (e.g. ['G1','S','G2'] = ascending
+        # DNA content).  sklearn does NOT order components by mean, so without
+        # this sort, argmax(predict_proba) returns raw component indices that
+        # don't line up with the user-provided label order.
+        sort_order = np.argsort(gmm.means_.flatten())
+        sorted_means = gmm.means_.flatten()[sort_order]
+        sorted_covs = gmm.covariances_.flatten()[sort_order]
+        sorted_weights = gmm.weights_[sort_order]
+        sorted_data_probs = gmm.predict_proba(subset_data.reshape(-1, 1))[:, sort_order]
+
         # Extract GMM info
         gmm_info = _GaussianMixtureModelInfo(
             gmm_kwargs=gmm_kwargs,
-            means=gmm.means_.flatten(),
-            covs=gmm.covariances_.flatten(),
-            weights=gmm.weights_,
+            means=sorted_means,
+            covs=sorted_covs,
+            weights=sorted_weights,
             n_components=n_components,
-            data_probs=gmm.predict_proba(subset_data.reshape(-1, 1)),
+            data_probs=sorted_data_probs,
         )
         
-        # Handle duplicate labels if needed
-        if duplicate_labels:
-            ordered_labels_processed, condensed_data_probs = self._handle_duplicate_labels(
-                ordered_labels, gmm_info.data_probs
+        # Handle duplicate labels if needed.
+        # Match single.py:643 arg order: (data_probs, ordered_labels) — and only
+        # collapse when labels actually contain duplicates, since the underlying
+        # _handle_duplicate_labels can mis-shape the output for no-op collapses.
+        has_duplicates = len(set(ordered_labels)) < len(ordered_labels)
+        if duplicate_labels and has_duplicates:
+            condensed_data_probs, ordered_labels_processed = self._handle_duplicate_labels(
+                gmm_info.data_probs, ordered_labels
             )
             gmm_info.condensed_data_probs = condensed_data_probs
         else:
@@ -440,19 +458,21 @@ class SequentialGMM(GaussianMixtureModelBase):
         
         # Calculate decision boundaries from probabilities
         # Convert data_probs back to numpy array (Pydantic stores as list)
-        probs_array = np.array(gmm_info.condensed_data_probs if duplicate_labels else gmm_info.data_probs)
+        probs_array = np.array(gmm_info.condensed_data_probs if (duplicate_labels and has_duplicates) else gmm_info.data_probs)
         decision_boundaries = self._calculate_decision_boundaries_from_probs(
             feature_values=subset_data,
             data_probs=probs_array,
             ordered_labels=ordered_labels_processed,
+            feature_name=feature,
         )
-        
-        # Assign new labels to subset cells
-        new_labels = self._assign_labels_from_thresholds(
-            data=subset_data,
-            thresholds=decision_boundaries.thresholds,
-            ordered_labels=ordered_labels_processed,
+
+        # Assign each cell the label of the interval it falls in
+        label_indices = self._assign_label_indices(
+            subset_data,
+            decision_boundaries.thresholds,
+            decision_boundaries.interval_components,
         )
+        new_labels = np.asarray(ordered_labels_processed)[label_indices]
         
         # Update labels in-place
         self._update_labels_in_place(
@@ -469,7 +489,7 @@ class SequentialGMM(GaussianMixtureModelBase):
             gmm_info=gmm_info,
             ordered_gmm_labels=ordered_labels,
             decision_boundaries=decision_boundaries,
-            condensed_labels=ordered_labels_processed if duplicate_labels else None,
+            condensed_labels=ordered_labels_processed if (duplicate_labels and has_duplicates) else None,
             feature_name=feature,
             gmm_obs_label=obs_label,
         )
@@ -1235,18 +1255,17 @@ class SequentialGMM(GaussianMixtureModelBase):
                 )
         
         # Filter adata to only include cells with labels from this operation
-        # For refinement operations, we need to include all descendant labels
-        # since subsequent operations may have further refined the labels
-        if 'refined_from_labels' in op_data and op_data['refined_from_labels']:
-            # This was a refinement operation - find all labels that descended from it
-            labels_to_plot = self._get_descendant_labels(operation_name, ordered_labels)
-        else:
-            # This was an initial threshold operation - use ordered_labels directly
-            labels_to_plot = ordered_labels
-        
+        # (or any of its descendants).  Initial-threshold operations also need
+        # the descendant lookup: by the time we plot, subsequent refinement
+        # stages may have replaced this op's labels with finer-grained ones,
+        # leaving zero cells under the original label strings.
+        # _get_descendant_labels gracefully handles the no-descendants case
+        # by returning the input labels unchanged.
+        labels_to_plot = self._get_descendant_labels(operation_name, ordered_labels)
+
         mask = self.adata.obs[obs_label].isin(labels_to_plot)
         adata_subset = self.adata[mask, :]
-        
+
         # Call base class plotting method with explicit parameters
         ax = super()._plot_hist_base(
             adata=adata_subset,

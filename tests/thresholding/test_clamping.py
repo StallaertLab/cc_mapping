@@ -1,12 +1,14 @@
-"""Tests for index clamping during label collapsing and visualization.
+"""Tests for heavily overlapping GMM components during label collapsing and plotting.
 
-This module tests that bin index clamping works correctly when:
-1. GMM components overlap significantly causing flip-flopping
-2. More thresholds are generated than expected for the number of unique labels
-3. Plotting functions use consistent clamping with labeling functions
-
-The clamping prevents IndexError when accessing color arrays or label arrays
-and ensures visualization matches actual cell assignments.
+These tests date from when overlapping components could produce more
+thresholds than labels and bin indices had to be clamped, hence the file and
+test names. Thresholds now come from one rule
+(GaussianMixtureModelBase._calculate_decision_boundaries_from_probs) that never
+produces more than labels - 1 thresholds, so nothing is clamped. The tests
+still check that, when GMM components overlap:
+1. every sample gets one of the given labels, without errors
+2. both decision boundary plots work
+3. plot colours come from the same labels the samples are assigned
 """
 
 import pytest
@@ -41,14 +43,15 @@ def extreme_overlap_adata():
     return adata
 
 
-### Core Clamping Tests ###
+### Labeling and Plotting with Overlapping Components ###
 
 
 def test_clamping_prevents_index_error_in_labeling(extreme_overlap_adata):
-    """Test that clamping prevents IndexError when assigning labels to cells.
+    """Test that labeling never raises IndexError when components overlap.
 
-    This is the core fix: when np.digitize returns indices that would be
-    out of bounds for the final_labels array, clamping constrains them.
+    Collapsing three heavily overlapping components into two labels used to
+    produce more thresholds than labels; every sample must still get a valid
+    label.
     """
     adata = extreme_overlap_adata
 
@@ -62,7 +65,7 @@ def test_clamping_prevents_index_error_in_labeling(extreme_overlap_adata):
     gmm.fit(n_components=3)
 
     # Collapse to 2 labels - this may create problematic thresholds
-    # Should NOT raise IndexError due to clamping (line 625 in single.py)
+    # Should NOT raise IndexError
     gmm.categorize_samples(ordered_labels=["low", "low", "high"], duplicate_labels=True)
 
     # Verify all cells were labeled (no crashes)
@@ -78,11 +81,11 @@ def test_clamping_prevents_index_error_in_labeling(extreme_overlap_adata):
 
 
 def test_clamping_prevents_index_error_in_plotting_vertical(extreme_overlap_adata):
-    """Test that clamping prevents IndexError in vertical decision boundary plotting.
+    """Test that vertical decision boundary plotting works when components overlap.
 
-    This tests the fix in _plot_vertical_linear_decision_boundaries where:
-    1. bin_indices for color grid are clamped (line 813 in base.py)
-    2. color_idx_right for threshold lines is clamped (line 829 in base.py)
+    _plot_vertical_linear_decision_boundaries colours the background and the
+    threshold lines from the label of each interval, so it can never index
+    past the label colours.
     """
     adata = extreme_overlap_adata
 
@@ -109,11 +112,11 @@ def test_clamping_prevents_index_error_in_plotting_vertical(extreme_overlap_adat
 
 
 def test_clamping_prevents_index_error_in_plotting_horizontal(extreme_overlap_adata):
-    """Test that clamping prevents IndexError in horizontal decision boundary plotting.
+    """Test that horizontal decision boundary plotting works when components overlap.
 
-    This tests the fix in _plot_horizontal_linear_decision_boundaries where:
-    1. bin_indices for color grid are clamped (line 885 in base.py)
-    2. color_idx_right for threshold lines is clamped (line 905 in base.py)
+    _plot_horizontal_linear_decision_boundaries colours the background and the
+    threshold lines from the label of each interval, so it can never index
+    past the label colours.
     """
     adata = extreme_overlap_adata
 
@@ -147,10 +150,10 @@ def test_clamping_prevents_index_error_in_plotting_horizontal(extreme_overlap_ad
 
 
 def test_plotting_matches_labeling_with_clamping(extreme_overlap_adata):
-    """Test that plotting colors match the actual cell labels after clamping.
+    """Test that plotting colors match the actual cell labels.
 
-    This ensures that the clamping in visualization uses the same logic
-    as the clamping in cell labeling, so users see accurate representations.
+    Labeling and plotting both map feature values to labels through
+    _assign_label_indices, so users see the actual assignments.
     """
     adata = extreme_overlap_adata
 
@@ -181,7 +184,7 @@ def test_plotting_matches_labeling_with_clamping(extreme_overlap_adata):
 
 
 def test_clamping_with_multiple_collapse_patterns():
-    """Test clamping works with various label collapse patterns."""
+    """Test labeling and plotting work with various label collapse patterns."""
     np.random.seed(456)
 
     # Create data
@@ -233,7 +236,7 @@ def test_clamping_with_multiple_collapse_patterns():
 
 
 def test_clamping_with_all_same_label():
-    """Test clamping when all components collapse to one label (edge case)."""
+    """Test labeling and plotting when all components collapse to one label (edge case)."""
     np.random.seed(789)
     feature_values = np.random.randn(500)
     adata = ad.AnnData(X=feature_values.reshape(-1, 1))
@@ -265,10 +268,11 @@ def test_clamping_with_all_same_label():
 
 
 def test_warning_issued_for_threshold_mismatch(extreme_overlap_adata):
-    """Test that a warning is issued when threshold count doesn't match expected.
+    """Test that any warning about overlapping components explains itself.
 
-    This documents the expected behavior: when GMM components overlap and
-    cause flip-flopping, the code warns the user but handles it gracefully.
+    When GMM components overlap, the code may warn that samples were
+    reassigned to the label of their interval or that a label received no
+    samples; any warning that mentions thresholds must say why.
     """
     adata = extreme_overlap_adata
 
@@ -308,8 +312,8 @@ def test_warning_issued_for_threshold_mismatch(extreme_overlap_adata):
 def test_manual_thresholds_bypass_clamping_issue():
     """Test that manual thresholds avoid the flip-flopping problem entirely.
 
-    When users specify manual thresholds, they explicitly control boundaries
-    and shouldn't encounter clamping issues (unless they provide wrong count).
+    When users specify manual thresholds, they explicitly control the
+    boundaries, so overlapping GMM components play no part.
     """
     np.random.seed(999)
     feature_values = np.random.randn(500)

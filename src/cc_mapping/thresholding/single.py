@@ -12,7 +12,6 @@ GMMThresholding
 import warnings
 import numbers
 from string import ascii_uppercase
-from collections import OrderedDict
 from typing import Dict, List, Optional, Union
 from pathlib import Path
 
@@ -97,7 +96,7 @@ class GMMThresholding(GaussianMixtureModelBase):
         TypeError
             If `adata.X` is not a numeric type.
         TypeError
-            If `adata.uns[thresholding_events_key]` exists but is not an OrderedDict.
+            If `adata.uns[thresholding_events_key]` exists but is not a dict.
         KeyError
             If `feature` is not found in `adata.var_names`.
         TypeError
@@ -131,10 +130,10 @@ class GMMThresholding(GaussianMixtureModelBase):
             raise ValueError("thresholding_events_key cannot be an empty string.")
 
         if thresholding_events_key not in adata.uns:
-            adata.uns[thresholding_events_key] = OrderedDict()
-        elif not isinstance(adata.uns[thresholding_events_key], OrderedDict):
+            adata.uns[thresholding_events_key] = {}
+        elif not isinstance(adata.uns[thresholding_events_key], dict):
             raise TypeError(
-                f"The '{thresholding_events_key}' key in the AnnData object's `.uns` attribute must be an OrderedDict."
+                f"The '{thresholding_events_key}' key in the AnnData object's `.uns` attribute must be a dict."
             )
 
         # Validate feature
@@ -167,6 +166,10 @@ class GMMThresholding(GaussianMixtureModelBase):
                 )
 
         self.adata = adata.copy()
+        # anndata cannot write an OrderedDict to .h5ad, so keep the events in a plain dict
+        self.adata.uns[thresholding_events_key] = dict(
+            self.adata.uns[thresholding_events_key]
+        )
         self.thresholding_events_key = thresholding_events_key
         self.label_obs_save_str = label_obs_save_str
         self.feature: str = feature
@@ -424,19 +427,6 @@ class GMMThresholding(GaussianMixtureModelBase):
 
         return ax
 
-    def _calculate_decision_boundaries(self) -> None:
-        """Calculate decision boundary thresholds using the fitted GMM model."""
-        feature_values = self._get_feature_data().flatten()
-        gmm_info: _GaussianMixtureModelInfo = self._internal_data.gmm_info
-        probabilities = np.array(gmm_info.data_probs)  # pylint: disable=E1101
-        # Call base class method and store result
-        # Note: ordered_labels not available in this context (called before categorize_samples)
-        self._internal_data.decision_boundaries = (
-            super()._calculate_decision_boundaries_from_probs(
-                feature_values, probabilities, ordered_labels=None
-            )
-        )
-
     def categorize_samples(
         self,
         manual_thresholds: Optional[List[Union[float, int]]] = None,
@@ -566,20 +556,19 @@ class GMMThresholding(GaussianMixtureModelBase):
             # Get feature values from adata
             feature_values = self._get_feature_data().flatten().copy()
 
-            # Apply manual thresholds using np.digitize
-            bin_indices = np.digitize(feature_values, manual_thresholds)
-
-            # Clamp to valid range [0, len(unique_labels)-1]
-            bin_indices = np.clip(bin_indices, 0, len(unique_labels) - 1)
-
-            # Assign labels
-            sample_labels = np.array(unique_labels)[bin_indices]
+            # Manual thresholds give one label per interval, in order
+            decision_boundaries = _DecisionBoundariesModel(thresholds=manual_thresholds)
+            label_indices = self._assign_label_indices(
+                feature_values,
+                decision_boundaries.thresholds,
+                decision_boundaries.interval_components,
+            )
 
             # Store results
-            self.adata.obs[self.label_obs_save_str] = sample_labels
-            self._internal_data.decision_boundaries = _DecisionBoundariesModel(
-                thresholds=manual_thresholds
-            )
+            self.adata.obs[self.label_obs_save_str] = np.array(unique_labels)[
+                label_indices
+            ]
+            self._internal_data.decision_boundaries = decision_boundaries
             self._internal_data.ordered_gmm_labels = ordered_labels
             self._manual_decision_boundaries = True
 
@@ -647,48 +636,28 @@ class GMMThresholding(GaussianMixtureModelBase):
             self._internal_data.condensed_labels = condensed_labels
             self._internal_data.gmm_info.condensed_data_probs = condensed_data_probs  # pylint: disable=E1101
             final_labels = condensed_labels
+            probabilities = condensed_data_probs
         else:
             final_labels = ordered_labels
+            probabilities = np.array(self._gmm_info.data_probs)  # pylint: disable=E1101
 
         # Calculate thresholds from GMM (using condensed probs if labels were collapsed)
-        if has_duplicates:
-            self._internal_data.decision_boundaries = (
-                super()._calculate_decision_boundaries_from_probs(
-                    feature_values, condensed_data_probs, ordered_labels=final_labels
-                )
-            )
-        else:
-            self._calculate_decision_boundaries()
-
+        decision_boundaries = super()._calculate_decision_boundaries_from_probs(
+            feature_values,
+            probabilities,
+            ordered_labels=final_labels,
+            feature_name=self.feature,
+        )
+        self._internal_data.decision_boundaries = decision_boundaries
         self._manual_decision_boundaries = False
 
-        # Assign samples to categories
-        thresholds = self._internal_data.decision_boundaries.thresholds
-        n_expected_thresholds = len(final_labels) - 1
-
-        # Handle case where number of thresholds doesn't match expected
-        # This can happen when GMM components overlap significantly and the
-        # condensed probabilities flip-flop (prefer different classes multiple times)
-        if len(thresholds) != n_expected_thresholds:
-            warnings.warn(
-                f"Found {len(thresholds)} threshold(s) but expected {n_expected_thresholds} "
-                f"for {len(final_labels)} unique label(s): {final_labels}. "
-                f"This suggests overlapping GMM components causing multiple class transitions. "
-                f"Clamping bin indices to valid label range. "
-                f"Review your plots to verify the boundaries are appropriate.",
-                UserWarning,
-            )
-
-        # Use np.digitize to assign bins
-        bin_indices = np.digitize(feature_values, thresholds)
-
-        # Clamp bin indices to valid range [0, len(final_labels)-1]
-        # This handles cases where we have more thresholds than expected
-        bin_indices = np.clip(bin_indices, 0, len(final_labels) - 1)
-
-        sample_labels = np.array(final_labels)[bin_indices]
-
-        self.adata.obs[self.label_obs_save_str] = sample_labels
+        # Assign each sample the label of the interval it falls in
+        label_indices = self._assign_label_indices(
+            feature_values,
+            decision_boundaries.thresholds,
+            decision_boundaries.interval_components,
+        )
+        self.adata.obs[self.label_obs_save_str] = np.array(final_labels)[label_indices]
         self._internal_data.ordered_gmm_labels = ordered_labels
 
     def return_thresholds(self) -> List[float]:
