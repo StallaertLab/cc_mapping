@@ -4715,4 +4715,4 @@ manifold = ["phate"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "23c1ba20520ff32cdc9de820968b08d3ac98d8a67a0a6c231c9cd68531f4d0d7"
+content-hash = "dee0ed2caa4d69a5dc11cbf778b816957c9809a4e1cae8a419cfd911e1d7eeca"

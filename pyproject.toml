@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "cc-mapping"
-version = "0.2.0"
+version = "0.2.5"
 description = "Gaussian Mixture Model-based thresholding for single-cell gene expression analysis"
 authors = ["ddpoe <dap182@pitt.edu>"]
 readme = "README.md"
@@ -43,7 +43,7 @@ kneed = "^0.8.5"
 mpl-scatter-density = "^0.8"
 tqdm = "^4.67.1"
 skops = {version = "^0.13.0", optional = true}
-phate = {version = "^1.0.0", optional = true}
+phate = {version = ">=1.0.0,<3.0.0", optional = true}
 
 [tool.poetry.extras]
 manifold = ["phate"]
