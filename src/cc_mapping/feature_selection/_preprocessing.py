@@ -143,7 +143,8 @@ def prepare_feature_matrix(
         AnnData object containing the data.
     feature_set : str or list[str] or np.ndarray
         Either a key in adata.var (boolean column marking features),
-        or a list/array of feature names to use.
+        or a list/array of feature names to use. Order does not matter:
+        the columns always follow adata.var_names.
     labels : str
         Key in adata.obs containing target labels.
     drop_na : bool, default=True

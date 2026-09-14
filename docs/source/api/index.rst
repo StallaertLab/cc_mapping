@@ -10,13 +10,23 @@ function raw specifications may not be enough to give full guidelines on their u
 
 
 
-:mod:`cc_mapping.core`: Random forest feature selection.
-=========================================================
+:mod:`cc_mapping.core`: Deprecated random forest feature selection.
+====================================================================
 
 .. toctree::
    :maxdepth: 1
 
    cc_mapping.core
+
+
+
+:mod:`cc_mapping.feature_selection`: Random forest feature selection.
+======================================================================
+
+.. toctree::
+   :maxdepth: 1
+
+   cc_mapping.feature_selection
 
 
 

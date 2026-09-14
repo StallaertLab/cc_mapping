@@ -27,6 +27,47 @@ SelectionResult
 PreparedData
     Container for prepared feature matrix and metadata.
 
+Notes
+-----
+``cc_mapping.core.random_forest_feature_selection`` is deprecated. The
+selectors use the same defaults and, given the same arguments, choose the
+same features in the same order. For example::
+
+    # before
+    core.random_forest_feature_selection(
+        adata, adata.var_names, "phase", method="RF_min_max",
+        threshold=0.05, stable_counter=5, feature_set_name="fs",
+    )
+
+    # after
+    selector = RFMinMaxSelector(threshold=0.05, stable_iterations=5)
+    selector.fit_adata(adata, adata.var_names, "phase")
+    selector.transform_adata(adata, var_key="fs")
+    fig = selector.plot_accuracy_curve()
+
+.. list-table:: Arguments of ``random_forest_feature_selection`` and their replacements
+   :header-rows: 1
+
+   * - ``random_forest_feature_selection``
+     - ``cc_mapping.feature_selection``
+   * - ``method="RF_min_max"``
+     - ``RFMinMaxSelector()``
+   * - ``method="RF_min_<N>"``
+     - ``RFTopNSelector(n_features=N)``, which raises if N exceeds the number
+       of features (the old function kept them all)
+   * - ``stable_counter``
+     - ``stable_iterations``
+   * - ``threshold``, ``cutoff_method``, ``random_state``, ``rf_params``,
+       ``train_test_split_params``, ``verbose``
+     - same names and defaults
+   * - ``training_feature_set``, ``training_labels``
+     - ``fit_adata(adata, feature_set_key, label_key)``
+   * - ``feature_set_name``
+     - ``transform_adata(adata, var_key=...)``; the default key is
+       ``"selected_features"`` instead of ``f"{method}_feature_set"``
+   * - ``plot``, ``save_path``, ``show``
+     - ``plot_accuracy_curve(save_path=..., show=...)``, called explicitly
+
 Examples
 --------
 Basic usage with numpy arrays:

@@ -8,7 +8,7 @@
    :no-members:
    :no-inherited-members:
 
-Random forest-based feature selection for identifying optimal feature sets.
+Deprecated in 0.2.6 and removed in 0.3.0: use :mod:`cc_mapping.feature_selection` instead.
 
 
 

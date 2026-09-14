@@ -93,14 +93,51 @@ API_REFERENCE = {
         ],
     },
     "cc_mapping.core": {
-        "short_summary": "Random forest feature selection.",
-        "description": "Random forest-based feature selection for identifying optimal feature sets.",
+        "short_summary": "Deprecated random forest feature selection.",
+        "description": "Deprecated in 0.2.6 and removed in 0.3.0: use :mod:`cc_mapping.feature_selection` instead.",
         "sections": [
             {
                 "title": "Functions",
                 "autosummary": [
                     "train_random_forest_model",
                     "random_forest_feature_selection",
+                ],
+            },
+        ],
+    },
+    "cc_mapping.feature_selection": {
+        "short_summary": "Random forest feature selection.",
+        "description": "Scikit-learn-style selectors that pick the features that best predict a label, with helpers to prepare the data, plot the results and save fitted selectors.",
+        "sections": [
+            {
+                "title": "Selectors",
+                "autosummary": [
+                    "RFMinMaxSelector",
+                    "RFTopNSelector",
+                    "FeatureSelector",
+                    "SelectionResult",
+                ],
+            },
+            {
+                "title": "Data Preparation",
+                "autosummary": [
+                    "prepare_feature_matrix",
+                    "validate_data",
+                    "PreparedData",
+                ],
+            },
+            {
+                "title": "Plotting",
+                "autosummary": [
+                    "plot_accuracy_curve",
+                    "plot_feature_importances",
+                ],
+            },
+            {
+                "title": "Training",
+                "autosummary": [
+                    "train_rf_model",
+                    "TrainingResult",
                 ],
             },
         ],

@@ -174,7 +174,8 @@ class FeatureSelector(ABC):
             AnnData object containing the data.
         feature_set_key : str or list[str]
             Either a key in adata.var that marks features (boolean column),
-            or a list of feature names.
+            or a list of feature names. Order does not matter: the columns
+            always follow adata.var_names.
         label_key : str
             Key in adata.obs containing target labels.
         drop_na : bool, default=True
