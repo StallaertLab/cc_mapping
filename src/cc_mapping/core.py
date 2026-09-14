@@ -101,7 +101,7 @@ def __random_forest_increment_counter(
 
 def random_forest_feature_selection(
     adata: ad.AnnData,
-    training_feature_set: str,
+    training_feature_set: list[str],
     training_labels: str,
     feature_set_name: str = None,
     method: str = "RF_min_max",
@@ -114,6 +114,7 @@ def random_forest_feature_selection(
     cutoff_method: str = "increment",
     train_test_split_params: Optional[dict] = None,
     rf_params: Optional[dict] = None,
+    show: bool = True,
 ) -> ad.AnnData:
     """
     Trains a random forest classifier on the training feature set and labels using one of two methods:
@@ -124,20 +125,25 @@ def random_forest_feature_selection(
 
     Args:
         adata (ad.AnnData): The AnnData object containing the data.
-        training_feature_set (str): The name of the feature set to be used for training.
+        training_feature_set (list[str]): Names of the features (entries of adata.var_names) to train on. Order does not matter.
         training_labels (str): The name of the labels to be used for training.
         feature_set_name (str, optional): The name of the feature set to be added to the .var attribute of the adata object. Defaults to None.
         method (str, optional): The method to be used for feature selection. Defaults to 'RF_min_max'.
         random_state (int, optional): The random state for reproducibility. Defaults to 42.
         threshold (float, optional): The threshold for determining when to stop adding features. Defaults to 0.01.
         stable_counter (int, optional): The number of stable iterations before stopping. Defaults to 3.
-        plot (bool, optional): Whether to plot the accuracy vs. number of features graph. Defaults to True.
+        plot (bool, optional): Whether to plot the accuracy vs. number of features graph (RF_min_max only). Defaults to True.
+        save_path (str, optional): Path to save the accuracy plot to. Defaults to None.
         cutoff_method (str, optional): The method for determining when to stop adding features. Defaults to 'increment'.
         train_test_split_params (dict, optional): The parameters for train test split. Defaults to {'test_size':0.25}.
         rf_params (dict, optional): The parameters for the random forest classifier. Defaults to {'min_samples_leaf':50, 'n_estimators':150, 'bootstrap':True, 'oob_score':True, 'n_jobs':-1}.
+        show (bool, optional): Whether to display the accuracy plot with plt.show(). If False, the plot is closed after it is saved. Defaults to True.
 
     Returns:
         ad.AnnData: The adata object with the feature set added to the .var attribute.
+
+    Raises:
+        ValueError: If any name in training_feature_set is not in adata.var_names.
     """
 
     if rf_params is None:
@@ -154,10 +160,19 @@ def random_forest_feature_selection(
     if feature_set_name is None:
         feature_set_name = f"{method}_feature_set"
 
-    # Get the indices of the features in the training feature set
+    missing_features = set(training_feature_set) - set(adata.var_names)
+    if missing_features:
+        raise ValueError(
+            f"Features not found in adata.var_names: {sorted(missing_features)}"
+        )
+
+    # Get the indices of the features in the training feature set. The columns of
+    # feature_set follow adata.var_names order, so the feature names must come from
+    # adata.var_names too -- not from the (arbitrarily ordered) training_feature_set.
     feature_set_idxs = np.where(np.isin(adata.var_names.values, training_feature_set))[
         0
     ]
+    feature_names = adata.var_names.values[feature_set_idxs]
 
     # remove the nan values from the feature set
     # TODO: I need to make this more generalizable because there are other forms of nan in the data
@@ -192,7 +207,7 @@ def random_forest_feature_selection(
 
     # negative to have it sort from highest to lowest
     sorted_idxs = np.argsort(-rf_classifier.feature_importances_)
-    sorted_feature_set = np.array(training_feature_set)[sorted_idxs]
+    sorted_feature_set = feature_names[sorted_idxs]
     sorted_features = feature_set[:, sorted_idxs]
 
     # if the method is RF_min_30, then the optimal feature set is the top 30 features
@@ -342,6 +357,9 @@ def random_forest_feature_selection(
         if save_path is not None:
             plt.savefig(save_path)
 
-        plt.close()
+        if show:
+            plt.show()
+        else:
+            plt.close()
 
     return adata
