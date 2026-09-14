@@ -154,6 +154,7 @@ For detailed documentation, tutorials, and API reference, visit [our documentati
 - **Single thresholding**: See `notebooks/Single_Thresholding_Workflow.ipynb`
 - **Sequential thresholding**: See `notebooks/Sequential_Thresholding_Workflow.ipynb`
 - **CSV to AnnData**: See `notebooks/CSV_to_Anndata.ipynb`
+- **Cell cycle maps** (random forest feature selection + PHATE): See `notebooks/Cell_Cycle_Map_Workflow.ipynb`
 
 ## Requirements
 
@@ -165,6 +166,7 @@ For detailed documentation, tutorials, and API reference, visit [our documentati
 - matplotlib ≥ 3.7.0
 - scipy ≥ 1.11.0
 - pydantic ≥ 2.10.0
+- phate (optional, for cell cycle maps): `pip install "cc-mapping[manifold]"`
 
 ## Citation
 

@@ -22,6 +22,11 @@ Once published, you can install cc-mapping using pip::
 
     pip install cc-mapping
 
+The PHATE-based cell cycle map functions in ``cc_mapping.manifold`` need the
+optional ``phate`` dependency::
+
+    pip install "cc-mapping[manifold]"
+
 Install from Source
 -------------------
 

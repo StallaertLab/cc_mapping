@@ -11,3 +11,4 @@ Step-by-step tutorials using real data and workflows.
    
    Single_Thresholding_Workflow
    Sequential_Thresholding_Workflow
+   Cell_Cycle_Map_Workflow
