@@ -19,12 +19,16 @@ import pandas as pd
 import pytest
 import scipy.sparse as sp
 
-from cc_mapping.core import random_forest_feature_selection
+from cc_mapping import core as cc_core
 from cc_mapping.feature_selection import (
     RFMinMaxSelector,
     RFTopNSelector,
     prepare_feature_matrix,
 )
+
+# The reference: core.random_forest_feature_selection as it was before it became
+# a wrapper around the selectors.
+from tests.fixtures.legacy_core import random_forest_feature_selection
 
 matplotlib.use("agg")
 
@@ -440,3 +444,121 @@ def test_loaded_minmax_selector_plots_the_same_curve(informative_adata, tmp_path
     np.testing.assert_array_equal(
         fig.axes[0].get_lines()[0].get_ydata(), selector.accuracy_curve_
     )
+
+
+# ---------------------------------------------------------------------------
+# core.random_forest_feature_selection, now a deprecated wrapper
+# ---------------------------------------------------------------------------
+
+ignore_core_deprecation = pytest.mark.filterwarnings(
+    "ignore:random_forest_feature_selection is deprecated:DeprecationWarning"
+)
+
+
+@ignore_core_deprecation
+@pytest.mark.parametrize(
+    "method, settings",
+    [
+        ("RF_min_max", {"cutoff_method": "increment"}),
+        ("RF_min_max", {"cutoff_method": "jump"}),
+        ("RF_min_5", {}),
+    ],
+    ids=["increment", "jump", "top5"],
+)
+def test_core_wrapper_matches_the_legacy_implementation(
+    graded_adata, run_core, monkeypatch, method, settings
+):
+    names = list(graded_adata.var_names)
+    settings = dict(settings, threshold=THRESHOLD, stable_counter=STABLE, **SHARED)
+    legacy = run_core(graded_adata.copy(), names, method, **settings)
+
+    shown = []
+    monkeypatch.setattr(plt, "show", lambda *args, **kwargs: shown.append(plt.gcf()))
+    wrapped = graded_adata.copy()
+    cc_core.random_forest_feature_selection(
+        wrapped,
+        names,
+        "phase",
+        method=method,
+        feature_set_name="fs",
+        verbose=False,
+        rf_params=FAST_RF,
+        **settings,
+    )
+
+    pd.testing.assert_series_equal(wrapped.var["fs"], legacy.var_column)
+    if legacy.accuracy_curve is not None:
+        np.testing.assert_array_equal(
+            shown[0].axes[0].get_lines()[0].get_ydata(), legacy.accuracy_curve
+        )
+
+
+def test_core_wrapper_warns_that_it_is_deprecated(informative_adata):
+    with pytest.warns(DeprecationWarning, match="RFTopNSelector"):
+        cc_core.random_forest_feature_selection(
+            informative_adata,
+            list(informative_adata.var_names),
+            "phase",
+            method="RF_min_3",
+            plot=False,
+            verbose=False,
+            rf_params=FAST_RF,
+        )
+
+
+@ignore_core_deprecation
+def test_core_wrapper_keeps_its_default_var_column_name(informative_adata):
+    cc_core.random_forest_feature_selection(
+        informative_adata,
+        list(informative_adata.var_names),
+        "phase",
+        method="RF_min_3",
+        plot=False,
+        verbose=False,
+        rf_params=FAST_RF,
+    )
+
+    assert informative_adata.var["RF_min_3_feature_set"].sum() == 3
+
+
+@ignore_core_deprecation
+def test_core_wrapper_keeps_every_feature_when_n_exceeds_them(informative_adata):
+    """RFTopNSelector raises here; the old function silently kept all features."""
+    cc_core.random_forest_feature_selection(
+        informative_adata,
+        list(informative_adata.var_names),
+        "phase",
+        method="RF_min_20",
+        feature_set_name="fs",
+        plot=False,
+        verbose=False,
+        rf_params=FAST_RF,
+    )
+
+    assert informative_adata.var["fs"].all()
+
+
+@ignore_core_deprecation
+def test_core_wrapper_rejects_an_unknown_method(informative_adata):
+    with pytest.raises(ValueError, match="RF_max"):
+        cc_core.random_forest_feature_selection(
+            informative_adata,
+            list(informative_adata.var_names),
+            "phase",
+            method="RF_max",
+            plot=False,
+            verbose=False,
+            rf_params=FAST_RF,
+        )
+
+
+def test_train_random_forest_model_warns_that_it_is_deprecated(informative_adata):
+    with pytest.warns(DeprecationWarning, match="train_rf_model"):
+        cc_core.train_random_forest_model(
+            informative_adata.X,
+            informative_adata.obs["phase"].to_numpy(),
+            rf_params=FAST_RF,
+            random_state=0,
+            train_test_split_params={"test_size": 0.25},
+            verbose=False,
+        )
