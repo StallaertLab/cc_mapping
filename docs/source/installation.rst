@@ -27,6 +27,11 @@ optional ``phate`` dependency::
 
     pip install "cc-mapping[manifold]"
 
+Saving and loading fitted selectors from ``cc_mapping.feature_selection``
+needs the optional ``skops`` dependency::
+
+    pip install "cc-mapping[persistence]"
+
 Install from Source
 -------------------
 

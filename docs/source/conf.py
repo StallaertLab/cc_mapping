@@ -19,8 +19,9 @@ project = "cc-mapping"
 copyright = "2025, ddpoe"
 author = "ddpoe"
 
-version = "0.2.0"
-release = "0.2.0"
+import cc_mapping  # noqa: E402
+
+version = release = cc_mapping.__version__
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

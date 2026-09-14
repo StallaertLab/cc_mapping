@@ -4711,8 +4711,9 @@ type = ["pytest-mypy"]
 
 [extras]
 manifold = ["phate"]
+persistence = ["skops"]
 
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "dee0ed2caa4d69a5dc11cbf778b816957c9809a4e1cae8a419cfd911e1d7eeca"
+content-hash = "e6e369a2cf020ffa3ee8f2e463d398b0eef46d6f3d1affa76e9a447c186cea2f"

@@ -167,6 +167,7 @@ For detailed documentation, tutorials, and API reference, visit [our documentati
 - scipy ≥ 1.11.0
 - pydantic ≥ 2.10.0
 - phate (optional, for cell cycle maps): `pip install "cc-mapping[manifold]"`
+- skops (optional, to save and load fitted feature selectors): `pip install "cc-mapping[persistence]"`
 
 ## Citation
 

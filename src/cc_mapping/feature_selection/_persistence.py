@@ -68,7 +68,7 @@ def _check_skops_available() -> None:
     if not SKOPS_AVAILABLE:
         raise ImportError(
             "skops is required for saving/loading selectors. "
-            "Install it with: pip install skops"
+            'Install it with: pip install "cc-mapping[persistence]"'
         )
 
 
