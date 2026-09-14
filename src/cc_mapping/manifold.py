@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from typing import Optional
 
 import anndata as ad
 import matplotlib as mpl
@@ -48,7 +47,7 @@ class PHATEConfig:
     gamma: float = 1.0
     n_pca: int = 100
     n_jobs: int = -1
-    random_state: Optional[int] = None
+    random_state: int | None = None
     verbose: bool = False
 
     def to_dict(self) -> dict:
@@ -202,7 +201,7 @@ def run_phate(
     adata: ad.AnnData,
     feature_set: str,
     layer: str,
-    phate_config: Optional[PHATEConfig] = None,
+    phate_config: PHATEConfig | None = None,
     obsm_save_key: str = "X_phate",
 ) -> ad.AnnData:
     """
@@ -244,7 +243,7 @@ class PHATEVisualizer:
         ax: plt.Axes,
         phate_coords: np.ndarray,
         colors: np.ndarray | pd.Series,
-        kwargs: Optional[dict] = None,
+        kwargs: dict | None = None,
     ) -> plt.Axes:
         """
         Plot PHATE embedding on given axes.
@@ -290,9 +289,9 @@ class PHATEVisualizer:
         adata: ad.AnnData,
         color_name: str,
         obsm_embedding: str = "X_phate",
-        ax: Optional[plt.Axes] = None,
+        ax: plt.Axes | None = None,
         unit_size: int = 5,
-        kwargs: Optional[dict] = None,
+        kwargs: dict | None = None,
         return_fig: bool = False,
     ) -> plt.Axes | tuple[plt.Figure, plt.Axes]:
         """
@@ -350,8 +349,8 @@ def perform_phate_hyperparameter_search(
     color_name: str,
     final_grid_dims: tuple[int, int],
     unit_size: int = 10,
-    plot_kwargs: Optional[dict] = None,
-    save_path: Optional[str] = None,
+    plot_kwargs: dict | None = None,
+    save_path: str | None = None,
     show_legend: bool = False,
 ) -> list[plt.Figure]:
     """
@@ -470,8 +469,8 @@ def quick_phate_plot(
     feature_set: str,
     layer: str,
     color_name: str,
-    phate_config: Optional[PHATEConfig] = None,
-    save_path: Optional[str] = None,
+    phate_config: PHATEConfig | None = None,
+    save_path: str | None = None,
 ) -> tuple[ad.AnnData, plt.Figure]:
     """
     Quick PHATE computation and visualization.

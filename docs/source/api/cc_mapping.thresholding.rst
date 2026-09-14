@@ -23,10 +23,8 @@ Classes
 .. autosummary::
    :toctree: generated
    :nosignatures:
-   
+
 
    GMMThresholding
 
    SequentialGMM
-
-

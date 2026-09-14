@@ -11,8 +11,8 @@ Key improvements:
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable, Optional
 
 import anndata as ad
 import matplotlib.patches as mpatches
@@ -20,7 +20,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.gridspec import GridSpec
-
 
 # ============================================================================
 # Configuration Dataclasses
@@ -42,7 +41,7 @@ class RowPartitionConfig(PlotConfig):
     adata: ad.AnnData
     obs_search_term: str
     colors: list | np.ndarray
-    column_labels: Optional[list | np.ndarray] = None
+    column_labels: list | np.ndarray | None = None
     obs_embedding_key: str = "X_phate"
     plot_all: bool = True
     plot_background: bool = True
@@ -77,7 +76,7 @@ class GridLabelRenderer:
         self,
         ax: plt.Axes,
         labels: list,
-        param_name: Optional[str] = None,
+        param_name: str | None = None,
     ) -> plt.Axes:
         """Add colored column labels to the top of the grid."""
         num_cols = len(labels)
@@ -110,7 +109,7 @@ class GridLabelRenderer:
         self,
         ax: plt.Axes,
         labels: list,
-        param_name: Optional[str] = None,
+        param_name: str | None = None,
     ) -> plt.Axes:
         """Add colored row labels to the left of the grid."""
         num_rows = len(labels)
@@ -384,13 +383,13 @@ def plot_row_partitions(
     adata: ad.AnnData,
     obs_search_term: str,
     colors: list | np.ndarray,
-    column_labels: Optional[list | np.ndarray] = None,
+    column_labels: list | np.ndarray | None = None,
     obs_embedding_key: str = "X_phate",
-    kwargs: Optional[dict] = None,
+    kwargs: dict | None = None,
     plot_all: bool = True,
     plot_background: bool = True,
     unit_size: int = 20,
-    save_path: Optional[str] = None,
+    save_path: str | None = None,
 ) -> plt.Figure:
     """
     Plot row partitions of the given AnnData object.
@@ -452,7 +451,7 @@ def plot_row_partitions(
 def get_legend(
     adata: ad.AnnData,
     color_name: str,
-    label_name: Optional[str] = None,
+    label_name: str | None = None,
 ) -> tuple[list[mpatches.Patch], np.ndarray]:
     """
     Get patches from adata.obs[color_name] for creating a legend.
@@ -488,9 +487,9 @@ def combine_figures_with_gridspec(
     grid_rows: int,
     grid_cols: int,
     unit_size: int = 5,
-    title: Optional[str] = None,
-    title_kwargs: Optional[dict] = None,
-    save_path: Optional[str] = None,
+    title: str | None = None,
+    title_kwargs: dict | None = None,
+    save_path: str | None = None,
 ) -> plt.Figure:
     """
     Combine multiple figures into a single figure using GridSpec.
