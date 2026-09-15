@@ -16,6 +16,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
+from mpl_scatter_density import ScatterDensityArtist
 
 from cc_mapping.thresholding import GMMThresholding, SequentialGMM
 from tests.helpers import probs_from_winners, use_fake_gaussian_mixture
@@ -142,3 +143,25 @@ def test_sequential_hist_plot_uses_the_stored_interval_labels(b_never_wins_adata
     background = ax.images[0].get_array()
     x = np.linspace(*ax.get_xlim(), background.shape[1])
     _assert_background_along(background[0], x)
+
+
+def test_strip_plot_leaves_the_callers_colormap_unchanged(b_never_wins_adata):
+    cmap = matplotlib.colormaps["viridis"]
+    under_before = cmap.get_under()
+
+    gmm = _categorized(b_never_wins_adata)
+    gmm.plot_strip_plot_histogram_with_decision_boundaries(cmap=cmap)
+
+    assert np.allclose(cmap.get_under(), under_before)
+
+
+def test_strip_plot_draws_empty_density_bins_in_white(b_never_wins_adata):
+    gmm = _categorized(b_never_wins_adata)
+    fig = gmm.plot_strip_plot_histogram_with_decision_boundaries()
+
+    (density,) = [
+        artist
+        for artist in fig.axes[0].get_children()
+        if isinstance(artist, ScatterDensityArtist)
+    ]
+    assert np.allclose(density.get_cmap().get_under(), (1.0, 1.0, 1.0, 1.0))

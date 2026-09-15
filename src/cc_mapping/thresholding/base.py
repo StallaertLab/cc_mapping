@@ -1137,7 +1137,8 @@ class GaussianMixtureModelBase:
         # Generate random x-coordinates for strip plot
         x = np.random.uniform(0, 1, size=feature_array.shape[0])
 
-        cmap.set_under("white", alpha=1.0)
+        # with_extremes returns a copy, leaving the caller's colormap unchanged
+        cmap = cmap.with_extremes(under="white")
 
         # Plot scatter (density or label-colored)
         if scatter_density:
