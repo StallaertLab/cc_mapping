@@ -4,7 +4,7 @@ This module tests the constructor validation, parameter checking, and proper
 initialization of the GMMThresholding class.
 """
 
-from src.cc_mapping.thresholding import GMMThresholding
+from cc_mapping.thresholding import GMMThresholding
 from tests.helpers import (
     assert_adata_copy_and_uns,
     assert_direct_attributes_initialized,

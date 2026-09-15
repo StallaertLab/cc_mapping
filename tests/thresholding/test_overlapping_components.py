@@ -7,7 +7,7 @@ causing the condensed probabilities to flip-flop and create multiple transitions
 import pytest
 import numpy as np
 import anndata as ad
-from src.cc_mapping.thresholding import GMMThresholding
+from cc_mapping.thresholding import GMMThresholding
 
 
 @pytest.fixture

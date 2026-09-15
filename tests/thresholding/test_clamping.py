@@ -15,7 +15,7 @@ import pytest
 import numpy as np
 import anndata as ad
 import matplotlib.pyplot as plt
-from src.cc_mapping.thresholding import GMMThresholding
+from cc_mapping.thresholding import GMMThresholding
 
 
 @pytest.fixture

@@ -1,19 +1,9 @@
-import sys
-import os
-
 import anndata as ad
 import numpy as np
 import pytest
 
-from src.cc_mapping.thresholding import GMMThresholding
+from cc_mapping.thresholding import GMMThresholding
 
-
-def pytest_configure():
-    """
-    Adds the project root directory to the Python path.
-    """
-    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # Adjust the path as needed
-    sys.path.insert(0, project_root)
 
 @pytest.fixture
 def sample_adata():

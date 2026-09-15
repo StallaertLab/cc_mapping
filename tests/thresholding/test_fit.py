@@ -5,7 +5,7 @@ validation of n_components parameter, and proper storage of fit results.
 """
 
 import pytest
-from src.cc_mapping.thresholding import GMMThresholding
+from cc_mapping.thresholding import GMMThresholding
 
 
 def test_fit_success(sample_adata, sample_gmm_thresholding_instance):

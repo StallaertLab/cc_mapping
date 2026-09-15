@@ -26,9 +26,9 @@ from typing import Any, Dict, Optional, Tuple, List, Union, Type
 import anndata as ad
 import numpy as np
 
-from src.cc_mapping.thresholding import (GMMThresholding,
-                                        _SingleThresholdingEventModel,
-                                        _GaussianMixtureModelInfo)
+from cc_mapping.thresholding import (GMMThresholding,
+                                    _SingleThresholdingEventModel,
+                                    _GaussianMixtureModelInfo)
 
 def create_modified_adata(
     base_adata: ad.AnnData,
