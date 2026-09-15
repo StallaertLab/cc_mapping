@@ -128,7 +128,7 @@ def test_collapse_many_to_few(sample_gmm_thresholding_instance):
         gmm._internal_data.gmm_info.condensed_data_probs is not None
     ), "Condensed probabilities should be created"
     assert (
-        gmm._internal_data.gmm_info.condensed_data_probs.shape[1] == 2
+        np.shape(gmm._internal_data.gmm_info.condensed_data_probs)[1] == 2
     ), "Condensed probabilities should have 2 columns for 2 categories"
 
     # Verify labels
@@ -183,7 +183,7 @@ def test_collapse_creates_condensed_probabilities(sample_gmm_thresholding_instan
     # Check dimensions
     n_samples = len(gmm.adata)
     n_categories = 2
-    assert condensed_probs.shape == (
+    assert np.shape(condensed_probs) == (
         n_samples,
         n_categories,
     ), f"Condensed probabilities should have shape ({n_samples}, {n_categories})"
@@ -303,3 +303,29 @@ def test_collapse_preserves_order(sample_gmm_thresholding_instance):
         "Low",
         "Medium",
     ], "Condensed labels should preserve the order of first occurrence"
+
+
+### Storage Tests ###
+
+
+def test_return_adata_stores_condensed_probabilities_as_lists(
+    sample_gmm_thresholding_instance,
+):
+    """Test that collapsed probabilities are stored as the lists the model declares.
+
+    An array stored in their place makes Pydantic warn while serializing the event.
+    """
+    import warnings
+
+    gmm = sample_gmm_thresholding_instance
+    gmm.fit(n_components=4)
+    gmm.categorize_samples(
+        ordered_labels=["Low", "Low", "High", "High"], duplicate_labels=True
+    )
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("error", message="Pydantic serializer warnings")
+        adata = gmm.return_adata()
+
+    stored = adata.uns[gmm.thresholding_events_key]["gene1"]["gmm_info"]
+    assert isinstance(stored["condensed_data_probs"], list)

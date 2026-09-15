@@ -28,7 +28,7 @@ import mpl_scatter_density  # noqa: F401  -- imported for its side effect: regis
 import numpy as np
 import pandas as pd
 import scipy.stats as st
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from sklearn.mixture import GaussianMixture
 
 
@@ -92,6 +92,9 @@ class _GaussianMixtureModelInfo(BaseModel):
     condensed_data_probs : list of list of float or None
         Condensed data probabilities after handling duplicates (optional).
     """
+
+    # Validate on assignment too, so arrays assigned after construction become lists.
+    model_config = ConfigDict(validate_assignment=True)
 
     gmm_kwargs: Optional[Dict] = Field(
         default=None,

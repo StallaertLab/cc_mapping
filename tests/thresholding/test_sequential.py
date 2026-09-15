@@ -242,6 +242,31 @@ class TestThresholdEntireDataset:
         
         # Should only have 2 final labels despite 4 components
         assert set(seq_gmm.adata.obs['cell_cycle'].unique()) == {'Low', 'High'}
+
+    def test_threshold_entire_dataset_stores_condensed_probabilities_as_lists(
+        self, adata_with_bimodal_dist
+    ):
+        """Test that collapsed probabilities are stored as the lists the model declares.
+
+        An array stored in their place makes Pydantic warn while serializing the event.
+        """
+        import warnings
+
+        seq_gmm = SequentialGMM(adata=adata_with_bimodal_dist)
+
+        with warnings.catch_warnings():
+            warnings.filterwarnings('error', message='Pydantic serializer warnings')
+            seq_gmm.threshold_entire_dataset(
+                feature='DNA',
+                label_obs_save_str='cell_cycle',
+                n_components=4,
+                ordered_labels=['Low', 'Low', 'High', 'High'],
+                duplicate_labels=True,
+                operation_name='DNA_collapsed'
+            )
+
+        event = seq_gmm.adata.uns['sequential_gmm_thresholding_events']['DNA_collapsed']
+        assert isinstance(event['gmm_info']['condensed_data_probs'], list)
     
     def test_threshold_entire_dataset_error_no_operation_name(self, basic_adata):
         """Test error when operation_name is None."""
