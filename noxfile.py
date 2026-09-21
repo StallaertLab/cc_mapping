@@ -1,5 +1,7 @@
-import nox
 import argparse
+
+import nox
+
 
 @nox.session(reuse_venv=True)
 def docs(session: nox.Session) -> None:
@@ -31,6 +33,7 @@ def docs(session: nox.Session) -> None:
     else:
         session.run("sphinx-build", "--keep-going", *shared_args)
 
+
 @nox.session
 def build_api_docs(session: nox.Session) -> None:
     """
@@ -47,7 +50,8 @@ def build_api_docs(session: nox.Session) -> None:
         "--force",
         "src/cc_mapping",
     )
-    
+
+
 @nox.session
 def pylint(session: nox.Session) -> None:
     session.install("-e.")

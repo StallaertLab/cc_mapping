@@ -20,7 +20,7 @@ Basic Workflow
 
 1. **Load your data** as an AnnData object
 2. **Choose a thresholder**:
-   
+
    - :class:`~cc_mapping.thresholding.GMMThresholding` for single features
    - :class:`~cc_mapping.thresholding.SequentialGMM` for multiple features
 
@@ -35,17 +35,17 @@ Quick Example
 
     import scanpy as sc
     from cc_mapping.thresholding import GMMThresholding
-    
+
     # Load your data
     adata = sc.read_h5ad("your_data.h5ad")
-    
+
     # Create and fit thresholder
     gmm = GMMThresholding()
     gmm.fit(adata, feature_key="PCNA")
-    
+
     # Visualize
     gmm.plot()
-    
+
     # Access results
     print(adata.obs["PCNA_categories"].value_counts())
 
