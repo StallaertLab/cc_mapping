@@ -1,20 +1,19 @@
-from typing import Optional
 import warnings
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
-import numpy as np  # noqa: E402
+import numpy as np
 
 np.seterr(all="ignore")
 
-import re  # noqa: E402
-import anndata as ad  # noqa: E402
+import re
 
-from sklearn import metrics  # noqa: E402
-from sklearn.model_selection import train_test_split  # noqa: E402
-from sklearn.ensemble import RandomForestClassifier  # noqa: E402
+import anndata as ad
+from sklearn import metrics
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
 
-from .feature_selection import (  # noqa: E402
+from .feature_selection import (
     RFMinMaxSelector,
     RFTopNSelector,
     prepare_feature_matrix,
@@ -91,8 +90,8 @@ def random_forest_feature_selection(
     verbose: bool = True,
     save_path: str = None,
     cutoff_method: str = "increment",
-    train_test_split_params: Optional[dict] = None,
-    rf_params: Optional[dict] = None,
+    train_test_split_params: dict | None = None,
+    rf_params: dict | None = None,
     show: bool = True,
 ) -> ad.AnnData:
     """

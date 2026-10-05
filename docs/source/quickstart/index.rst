@@ -5,7 +5,7 @@ Get started quickly with cc-mapping thresholding tools.
 
 .. toctree::
    :maxdepth: 2
-   
+
    installation
    basic_usage
    single_thresholding
@@ -14,7 +14,7 @@ Get started quickly with cc-mapping thresholding tools.
 Overview
 --------
 
-The cc-mapping package provides powerful Gaussian Mixture Model-based thresholding 
+The cc-mapping package provides powerful Gaussian Mixture Model-based thresholding
 for cell cycle analysis. This guide will help you get started with the main features.
 
 Choose your workflow:

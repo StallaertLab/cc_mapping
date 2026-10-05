@@ -10,7 +10,7 @@ import pytest
 # cc_mapping.manifold needs the optional phate dependency; skip the module without it
 pytest.importorskip("phate")
 
-from cc_mapping.manifold import (  # noqa: E402
+from cc_mapping.manifold import (
     PHATEConfig,
     PHATEHyperparamGrid,
     PHATEVisualizer,

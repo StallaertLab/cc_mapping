@@ -20,8 +20,6 @@ General-purpose utility functions for data manipulation and analysis.
 .. autosummary::
    :toctree: generated
    :nosignatures:
-   
+
 
    create_boolean_label_combination
-
-
