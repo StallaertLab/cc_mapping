@@ -73,27 +73,27 @@ Examples
 Basic usage with numpy arrays:
 
 >>> from cc_mapping.feature_selection import RFMinMaxSelector, validate_data
->>> 
+>>>
 >>> validate_data(X, y, feature_names)  # Check for NaN/inf
 >>> selector = RFMinMaxSelector(threshold=0.01)
 >>> selector.fit(X, y, feature_names)
->>> 
+>>>
 >>> print(f"Selected {selector.results.n_features_selected} features")
 >>> mask = selector.get_support()
 
 Usage with AnnData:
 
 >>> from cc_mapping.feature_selection import prepare_feature_matrix, RFTopNSelector
->>> 
+>>>
 >>> prepared = prepare_feature_matrix(
 ...     adata,
 ...     feature_set="intensity_features",
 ...     labels="cell_cycle_phase",
 ... )
->>> 
+>>>
 >>> selector = RFTopNSelector(n_features=30)
 >>> selector.fit(prepared.X, prepared.y, prepared.feature_names)
->>> 
+>>>
 >>> # Add selection to adata
 >>> adata = selector.transform_adata(adata, var_key="selected_features")
 
@@ -104,14 +104,14 @@ Saving and loading:
 """
 
 from ._base import FeatureSelector, SelectionResult
+from ._plotting import plot_accuracy_curve, plot_feature_importances
 from ._preprocessing import (
+    PreparedData,
     prepare_feature_matrix,
     validate_data,
-    PreparedData,
 )
-from ._random_forest import RFTopNSelector, RFMinMaxSelector
-from ._plotting import plot_accuracy_curve, plot_feature_importances
-from ._training import train_rf_model, TrainingResult
+from ._random_forest import RFMinMaxSelector, RFTopNSelector
+from ._training import TrainingResult, train_rf_model
 
 __all__ = [
     # Base classes
