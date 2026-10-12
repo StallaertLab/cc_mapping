@@ -24,7 +24,6 @@ from cc_mapping.thresholding import GMMThresholding, SequentialGMM
 from cc_mapping.thresholding.base import GaussianMixtureModelBase
 from tests.helpers import probs_from_winners, use_fake_gaussian_mixture
 
-
 FEATURE = "marker"
 LABELS = ["A", "B", "C"]
 FEATURE_VALUES = np.arange(300, dtype=float)

@@ -8,13 +8,13 @@
    :show-inheritance:
    :inherited-members:
 
-   
-   
+
+
    .. rubric:: Methods
 
    .. autosummary::
       :nosignatures:
-   
+
       ~GMMThresholding.categorize_samples
       ~GMMThresholding.determine_optimal_components
       ~GMMThresholding.determine_optimal_number_components
@@ -28,9 +28,9 @@
       ~GMMThresholding.plot_strip_plot_histogram_with_decision_boundaries
       ~GMMThresholding.return_adata
       ~GMMThresholding.return_thresholds
-   
-   
 
-   
-   
-   
+
+
+
+
+

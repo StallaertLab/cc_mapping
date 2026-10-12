@@ -5,9 +5,8 @@ user-specified manual thresholds. This is critical for ensuring consistent
 thresholding across different datasets or experimental conditions.
 """
 
-import pytest
 import numpy as np
-
+import pytest
 
 ### Basic Manual Threshold Tests ###
 
@@ -23,14 +22,14 @@ def test_manual_thresholds_override_gmm(sample_gmm_thresholding_instance):
     )
 
     # Should use manual thresholding
-    assert (
-        gmm._manual_decision_boundaries
-    ), "Should indicate manual thresholding is active"
+    assert gmm._manual_decision_boundaries, (
+        "Should indicate manual thresholding is active"
+    )
 
     # Should return exact threshold provided
-    assert (
-        gmm.return_thresholds() == manual_threshold
-    ), "Should return the exact manual threshold provided, not GMM-derived"
+    assert gmm.return_thresholds() == manual_threshold, (
+        "Should return the exact manual threshold provided, not GMM-derived"
+    )
 
 
 def test_manual_thresholds_set_flag(sample_gmm_thresholding_instance):
@@ -40,17 +39,17 @@ def test_manual_thresholds_set_flag(sample_gmm_thresholding_instance):
 
     # Without manual thresholds
     gmm.categorize_samples(ordered_labels=["Low", "Medium", "High"])
-    assert (
-        not gmm._manual_decision_boundaries
-    ), "Should be False when using automatic thresholding"
+    assert not gmm._manual_decision_boundaries, (
+        "Should be False when using automatic thresholding"
+    )
 
     # With manual thresholds
     gmm.categorize_samples(
         ordered_labels=["Low", "Medium", "High"], manual_thresholds=[1.0, 2.0]
     )
-    assert (
-        gmm._manual_decision_boundaries
-    ), "Should be True when using manual thresholding"
+    assert gmm._manual_decision_boundaries, (
+        "Should be True when using manual thresholding"
+    )
 
 
 def test_manual_thresholds_with_collapsed_labels(sample_gmm_thresholding_instance):
@@ -99,9 +98,9 @@ def test_manual_thresholds_multiple_thresholds(sample_gmm_thresholding_instance)
     assert gmm._manual_decision_boundaries, "Should use manual thresholding"
 
     # Should return both thresholds
-    assert (
-        gmm.return_thresholds() == manual_thresholds
-    ), "Should return both manual thresholds in order"
+    assert gmm.return_thresholds() == manual_thresholds, (
+        "Should return both manual thresholds in order"
+    )
 
     # Verify all three labels are assigned
     unique_labels = set(gmm.adata.obs["labels"].unique())
@@ -196,9 +195,9 @@ def test_manual_threshold_assigns_correctly(sample_gmm_thresholding_instance):
     # With threshold at 0.0, there should be clear separation
     # All low values should be <= threshold, all high values should be > threshold
     # (or vice versa depending on sorting)
-    assert (
-        np.max(low_values) <= threshold or np.min(high_values) > threshold
-    ), "Manual threshold should create separation at the specified value"
+    assert np.max(low_values) <= threshold or np.min(high_values) > threshold, (
+        "Manual threshold should create separation at the specified value"
+    )
 
 
 def test_manual_threshold_with_extreme_value(sample_gmm_thresholding_instance):
@@ -218,9 +217,9 @@ def test_manual_threshold_with_extreme_value(sample_gmm_thresholding_instance):
     high_count = (labels == "High").sum()
 
     # With threshold way above data range, expect most samples in 'Low'
-    assert (
-        low_count > high_count
-    ), "Extreme high threshold should assign most samples to first category"
+    assert low_count > high_count, (
+        "Extreme high threshold should assign most samples to first category"
+    )
 
 
 def test_manual_threshold_ordering(sample_gmm_thresholding_instance):
@@ -270,9 +269,9 @@ def test_manual_then_automatic_thresholding(sample_gmm_thresholding_instance):
     automatic_threshold = gmm.return_thresholds()
 
     # Automatic threshold should be different from manual
-    assert (
-        automatic_threshold != manual_threshold
-    ), "Automatic thresholding should produce different threshold than manual"
+    assert automatic_threshold != manual_threshold, (
+        "Automatic thresholding should produce different threshold than manual"
+    )
 
 
 def test_manual_threshold_consistency_across_calls(sample_gmm_thresholding_instance):
@@ -290,9 +289,9 @@ def test_manual_threshold_consistency_across_calls(sample_gmm_thresholding_insta
     second_labels = gmm.adata.obs["labels"].copy()
 
     # Should get identical results
-    assert (
-        first_labels == second_labels
-    ).all(), "Manual threshold should produce consistent results across calls"
+    assert (first_labels == second_labels).all(), (
+        "Manual threshold should produce consistent results across calls"
+    )
 
 
 def test_manual_threshold_with_single_category(sample_gmm_thresholding_instance):
