@@ -20,7 +20,7 @@ Base Classes:
 Usage::
 
     from cc_mapping.thresholding import GMMThresholding
-    
+
     gmm = GMMThresholding(
         adata=adata,
         feature='gene1',
@@ -32,29 +32,24 @@ Usage::
 """
 
 from .base import (
-    _GaussianMixtureModelInfo,
-    _DecisionBoundariesModel,
-    _SingleThresholdingEventModel,
     GaussianMixtureModelBase,
+    _DecisionBoundariesModel,
+    _GaussianMixtureModelInfo,
+    _SingleThresholdingEventModel,
 )
-
-from .single import GMMThresholding
-
 from .sequential import SequentialGMM
-
+from .single import GMMThresholding
 
 __all__ = [
     # Main classes
-    'GMMThresholding',
-    'SequentialGMM',
-    
+    "GMMThresholding",
+    "SequentialGMM",
     # Base class
-    'GaussianMixtureModelBase',
-    
+    "GaussianMixtureModelBase",
     # Pydantic models (private but exposed for advanced usage)
-    '_GaussianMixtureModelInfo',
-    '_DecisionBoundariesModel',
-    '_SingleThresholdingEventModel',
+    "_GaussianMixtureModelInfo",
+    "_DecisionBoundariesModel",
+    "_SingleThresholdingEventModel",
 ]
 
-__version__ = '0.1.1'
+__version__ = "0.1.1"

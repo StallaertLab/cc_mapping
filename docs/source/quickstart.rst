@@ -15,20 +15,20 @@ Use :class:`~cc_mapping.thresholding.GMMThresholding` for thresholding a single 
 
     import scanpy as sc
     from cc_mapping.thresholding import GMMThresholding
-    
+
     # Load your data
     adata = sc.read_h5ad("your_data.h5ad")
-    
+
     # Create thresholder
     gmm = GMMThresholding()
-    
+
     # Fit the model
     gmm.fit(adata, feature_key="PCNA")
-    
+
     # Access results
     print(f"Threshold: {gmm.threshold}")
     print(f"Categories: {gmm.categories}")
-    
+
     # Visualize
     gmm.plot()
 
@@ -40,16 +40,16 @@ Use :class:`~cc_mapping.thresholding.SequentialGMM` for multiple features:
 .. code-block:: python
 
     from cc_mapping.thresholding import SequentialGMM
-    
+
     # Create sequential thresholder
     seq_gmm = SequentialGMM()
-    
+
     # Define features to threshold sequentially
     features = ["PCNA", "CDK2", "Geminin"]
-    
+
     # Fit sequentially
     seq_gmm.fit(adata, feature_keys=features)
-    
+
     # Visualize all steps
     seq_gmm.plot()
 
@@ -62,10 +62,10 @@ The thresholding results are stored in the AnnData object:
 
     # Access categorized cells
     categories = adata.obs["PCNA_categories"]
-    
+
     # Filter for high-expressing cells
     high_cells = adata[adata.obs["PCNA_categories"] == "High"]
-    
+
     # Continue with downstream analysis
     sc.pl.umap(adata, color="PCNA_categories")
 
