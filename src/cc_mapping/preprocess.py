@@ -1,7 +1,7 @@
 import re
 
-import numpy as np
 import anndata as ad
+import numpy as np
 
 
 def row_data_partitioning(

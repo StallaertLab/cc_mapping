@@ -8,13 +8,13 @@
    :show-inheritance:
    :inherited-members:
 
-   
-   
+
+
    .. rubric:: Methods
 
    .. autosummary::
       :nosignatures:
-   
+
       ~SequentialGMM.determine_optimal_number_components
       ~SequentialGMM.generate_thresholding_report
       ~SequentialGMM.plot_bayesian_information_criterion_curve
@@ -26,9 +26,9 @@
       ~SequentialGMM.refine_labels_with_manual_thresholds
       ~SequentialGMM.return_adata
       ~SequentialGMM.threshold_entire_dataset
-   
-   
 
-   
-   
-   
+
+
+
+
+

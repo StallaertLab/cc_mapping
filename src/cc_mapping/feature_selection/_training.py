@@ -5,13 +5,11 @@ Model training utilities for feature selection.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
 import numpy as np
+from sklearn import metrics
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
-from sklearn import metrics
-
 
 # Default parameters for Random Forest
 DEFAULT_RF_PARAMS = {
@@ -31,7 +29,7 @@ DEFAULT_SPLIT_PARAMS = {
 class TrainingResult:
     """
     Container for model training results.
-    
+
     Attributes
     ----------
     model : RandomForestClassifier
@@ -45,6 +43,7 @@ class TrainingResult:
     classification_report : str
         Full classification report as string.
     """
+
     model: RandomForestClassifier
     accuracy: float
     predictions: np.ndarray
@@ -63,7 +62,7 @@ def train_rf_model(
 ) -> TrainingResult:
     """
     Train a Random Forest classifier and evaluate on held-out test set.
-    
+
     Parameters
     ----------
     X : np.ndarray
@@ -71,7 +70,7 @@ def train_rf_model(
     y : np.ndarray
         Target labels of shape (n_samples,).
     rf_params : dict, optional
-        Parameters for RandomForestClassifier. 
+        Parameters for RandomForestClassifier.
         Defaults to DEFAULT_RF_PARAMS.
     train_test_split_params : dict, optional
         Parameters for train_test_split.
@@ -82,12 +81,12 @@ def train_rf_model(
         Whether to print classification report.
     description : str, optional
         Description for verbose output.
-        
+
     Returns
     -------
     TrainingResult
         Container with model, accuracy, and evaluation details.
-        
+
     Examples
     --------
     >>> result = train_rf_model(X, y, verbose=True, description="initial")
@@ -98,23 +97,23 @@ def train_rf_model(
         rf_params = DEFAULT_RF_PARAMS.copy()
     if train_test_split_params is None:
         train_test_split_params = DEFAULT_SPLIT_PARAMS.copy()
-    
+
     # Split data
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, random_state=random_state, **train_test_split_params
     )
-    
+
     # Train model
     model = RandomForestClassifier(random_state=random_state, **rf_params)
     model.fit(X_train, y_train)
-    
+
     # Evaluate
     predictions = model.predict(X_test)
     accuracy = metrics.accuracy_score(y_test, predictions)
     # zero_division=0 gives the same 0.0 scores as the default, without warning
     # about classes the forest never predicts (the report is built even when quiet)
     report = metrics.classification_report(y_test, predictions, zero_division=0)
-    
+
     if verbose:
         desc_str = f" ({description})" if description else ""
         print(f"Classification Report{desc_str}")
@@ -122,7 +121,7 @@ def train_rf_model(
         print(report)
         print(f"Accuracy: {accuracy:.4f}")
         print()
-    
+
     return TrainingResult(
         model=model,
         accuracy=accuracy,
@@ -137,12 +136,12 @@ def get_sorted_feature_indices(
 ) -> np.ndarray:
     """
     Get feature indices sorted by importance (highest first).
-    
+
     Parameters
     ----------
     model : RandomForestClassifier
         Fitted Random Forest model.
-        
+
     Returns
     -------
     np.ndarray
