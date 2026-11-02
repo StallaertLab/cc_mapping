@@ -25,7 +25,7 @@
 .. autosummary::
    :toctree: generated
    :nosignatures:
-   
+
 {% for item in section.autosummary %}
    {{ item }}
 {% endfor %}
