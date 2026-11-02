@@ -129,7 +129,9 @@ def test_row_partitions_color_categorical_column_with_default_palette(embedded_a
     )
     all_column = _cell_facecolors(fig, 2)
     colors_per_phase = {
-        ph: {tuple(c) for c in all_column[(embedded_adata.obs["phase"] == ph).to_numpy()]}
+        ph: {
+            tuple(c) for c in all_column[(embedded_adata.obs["phase"] == ph).to_numpy()]
+        }
         for ph in ["G1", "S", "G2"]
     }
     assert all(len(colors) == 1 for colors in colors_per_phase.values())
@@ -176,7 +178,9 @@ def _has_color(region, rgb):
 def test_combine_figures_draws_each_source_in_its_own_cell():
     figures = [_scatter_figure("red"), _scatter_figure("blue")]
 
-    combined = combine_figures_with_gridspec(figures, grid_rows=1, grid_cols=2, unit_size=3)
+    combined = combine_figures_with_gridspec(
+        figures, grid_rows=1, grid_cols=2, unit_size=3
+    )
 
     combined.canvas.draw()
     img = np.asarray(combined.canvas.buffer_rgba())[..., :3].astype(int)
