@@ -22,7 +22,7 @@ Step-by-Step Guide
 
     import scanpy as sc
     from cc_mapping.thresholding import GMMThresholding
-    
+
     # Load your data
     adata = sc.read_h5ad("your_data.h5ad")
 
@@ -33,7 +33,7 @@ Step-by-Step Guide
 
     # Initialize with default parameters
     gmm = GMMThresholding()
-    
+
     # Or customize parameters
     gmm = GMMThresholding(
         gmm_kwargs={'n_components': 3, 'random_state': 42}
@@ -54,7 +54,7 @@ Step-by-Step Guide
 
     # Create comprehensive visualization
     gmm.plot()
-    
+
     # Or use specific plots
     gmm.plot_hist_distribution_with_boundaries()
     gmm.plot_bayesian_information_criterion_curve()
@@ -66,10 +66,10 @@ Step-by-Step Guide
 
     # Get categorized cells
     categories = adata.obs["PCNA_categories"]
-    
+
     # Get thresholds
     thresholds = gmm.return_thresholds()
-    
+
     # Get the updated AnnData object
     adata_result = gmm.return_adata()
 
