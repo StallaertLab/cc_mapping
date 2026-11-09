@@ -48,7 +48,6 @@ def run_palantir_pseudotime(
     try:
         with open(os.devnull, "w") as devnull:
             with contextlib.redirect_stdout(devnull):
-
                 palantir.utils.run_diffusion_maps(
                     adata, n_components=n_components, pca_key=data_key, seed=seed
                 )
@@ -234,7 +233,6 @@ def perform_palantir_hyperparameter_search(
         total=number_param_plots,
         desc="Generating hyperparameter search plots",
     ):
-
         plotting_dict = {
             "adata": adata.copy(),
             "data_key": data_key,

@@ -9,7 +9,6 @@ deprecated core functions.
 """
 
 import re
-from typing import Optional
 
 import anndata as ad
 import matplotlib.pyplot as plt
@@ -114,8 +113,8 @@ def random_forest_feature_selection(
     verbose: bool = True,
     save_path: str = None,
     cutoff_method: str = "increment",
-    train_test_split_params: Optional[dict] = None,
-    rf_params: Optional[dict] = None,
+    train_test_split_params: dict | None = None,
+    rf_params: dict | None = None,
     show: bool = True,
 ) -> ad.AnnData:
     """
@@ -333,7 +332,7 @@ def random_forest_feature_selection(
             label=f"Optimal Feature Set Size: {optim_feat_num}",
         )
         plt.title(
-            f"Stable Counter {stable_counter} - Stable Threshold {threshold*100}% - Cutoff Method: {cutoff_method}"
+            f"Stable Counter {stable_counter} - Stable Threshold {threshold * 100}% - Cutoff Method: {cutoff_method}"
         )
         plt.xticks(x_axis)
 

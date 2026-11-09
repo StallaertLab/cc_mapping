@@ -32,7 +32,7 @@ Step-by-Step Guide
 
     import scanpy as sc
     from cc_mapping.thresholding import SequentialGMM
-    
+
     # Load your data
     adata = sc.read_h5ad("your_data.h5ad")
 
@@ -43,7 +43,7 @@ Step-by-Step Guide
 
     # Initialize
     seq_gmm = SequentialGMM()
-    
+
     # Or customize
     seq_gmm = SequentialGMM(
         gmm_kwargs={'random_state': 42},
@@ -73,7 +73,7 @@ Step-by-Step Guide
 
     # Visualize all thresholding steps
     seq_gmm.plot()
-    
+
     # Or visualize specific features
     seq_gmm.plot_hist_distribution_with_boundaries(feature_key="PCNA")
 
@@ -84,7 +84,7 @@ Step-by-Step Guide
 
     # Get final cell categorization
     categories = adata.obs[seq_gmm.thresholding_events_key]
-    
+
     # Get the updated AnnData object
     adata_result = seq_gmm.return_adata()
 
