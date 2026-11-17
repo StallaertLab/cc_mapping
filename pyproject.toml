@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "cc-mapping"
-version = "0.2.6"
+version = "0.2.7"
 description = "Gaussian Mixture Model-based thresholding for single-cell gene expression analysis"
 authors = ["ddpoe <dap182@pitt.edu>"]
 readme = "README.md"
