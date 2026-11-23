@@ -71,20 +71,19 @@ Features
 .. toctree::
    :maxdepth: 1
    :hidden:
-   
+
    installation
 
 .. toctree::
    :maxdepth: 2
    :hidden:
    :caption: API Reference
-   
+
    api/index
 
 .. toctree::
    :maxdepth: 2
    :hidden:
    :caption: Examples
-   
-   tutorials/index
 
+   tutorials/index
